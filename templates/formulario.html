@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Generador de certificados</title>
+</head>
+<body>
+    <h2>Subir datos para previsualizar</h2>
+    <form action="/previsualizar" method="post" enctype="multipart/form-data">
+        <label for="file">Lista Excel:</label>
+        <input type="file" id="file" name="file" accept=".xlsx,.xls" required>
+
+        <label for="plantilla">Plantilla DOCX:</label>
+        <input type="file" id="plantilla" name="plantilla" accept=".docx" required>
+
+        <button type="submit">Previsualizar certificados</button>
+    </form>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Previsualizacion de certificados</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 24px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+        input[type="text"] {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 6px;
+        }
+        .acciones {
+            margin-top: 16px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <h2>Previsualizacion editable</h2>
+    <p>Edita los datos, revisa cada PDF con marca de agua y luego genera solo los seleccionados.</p>
+
+    <form action="/generar-final" method="post" id="form-final">
+        <input type="hidden" name="session_id" value="{{ session_id }}">
+
+        <label>
+            <input type="checkbox" id="seleccionar-todos" checked>
+            Seleccionar todos
+        </label>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Seleccionar</th>
+                    <th>Nombre</th>
+                    <th>Curso</th>
+                    <th>Previsualizar PDF</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for idx, row in rows %}
+                <tr>
+                    <td>
+                        <input type="checkbox" class="selector" name="selected_ids" value="{{ idx }}" checked>
+                    </td>
+                    <td>
+                        <input type="text" id="nombre_{{ idx }}" name="nombre_{{ idx }}" value="{{ row.nombre }}" required>
+                    </td>
+                    <td>
+                        <input type="text" id="curso_{{ idx }}" name="curso_{{ idx }}" value="{{ row.curso }}" required>
+                    </td>
+                    <td>
+                        <button type="button" onclick="abrirPreview({{ idx }})">Ver PDF</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="acciones">
+            <button type="submit">Generar PDFs finales</button>
+            <a href="/">Volver</a>
+        </div>
+    </form>
+
+    <script>
+        const seleccionarTodos = document.getElementById('seleccionar-todos');
+        const selectors = document.querySelectorAll('.selector');
+
+        seleccionarTodos.addEventListener('change', function () {
+            selectors.forEach((cb) => {
+                cb.checked = this.checked;
+            });
+        });
+
+        selectors.forEach((cb) => {
+            cb.addEventListener('change', function () {
+                const total = selectors.length;
+                const marcados = Array.from(selectors).filter((x) => x.checked).length;
+                seleccionarTodos.checked = marcados === total;
+            });
+        });
+
+        function abrirPreview(idx) {
+            const nombre = document.getElementById(`nombre_${idx}`).value;
+            const curso = document.getElementById(`curso_${idx}`).value;
+            const sessionId = `{{ session_id }}`;
+            const url = `/visor-preview/${sessionId}/${idx}?nombre=${encodeURIComponent(nombre)}&curso=${encodeURIComponent(curso)}`;
+            window.open(url, '_blank');
+        }
+    </script>
+</body>
+</html>

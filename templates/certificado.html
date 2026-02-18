@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            font-family: Arial;
+            text-align: center;
+            padding: 60px;
+        }
+        .watermark {
+            position: fixed;
+            top: 40%;
+            left: 15%;
+            font-size: 80px;
+            opacity: 0.15;
+            transform: rotate(-30deg);
+        }
+    </style>
+</head>
+<body>
+
+{% if no_valido %}
+<div class="watermark">NO VÁLIDO</div>
+{% endif %}
+
+<img src="static/logo.png" width="120">
+
+<h1>Constancia</h1>
+
+<p>Se otorga la presente constancia a:</p>
+
+<h2>{{ nombre }}</h2>
+
+<p>Por haber completado el curso:</p>
+
+<h3>{{ curso }}</h3>
+
+</body>
+</html>

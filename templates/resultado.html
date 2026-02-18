@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Resultado</title>
+</head>
+<body>
+    <h2>Certificados generados</h2>
+
+    {% if generados %}
+        <ul>
+            {% for item in generados %}
+                <li>
+                    {{ item.nombre }}:
+                    <a href="{{ item.pdf }}" target="_blank">PDF</a>
+                    |
+                    <a href="{{ item.docx }}" target="_blank">DOCX</a>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No se genero ningun certificado.</p>
+    {% endif %}
+
+    <a href="/">Volver al inicio</a>
+</body>
+</html>
