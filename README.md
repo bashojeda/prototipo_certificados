@@ -39,3 +39,22 @@ uvicorn main:app --reload
 - `templates/visor_preview.html`: visor de previsualizacion con marca de agua PNG
 - `templates/resultado.html`: resultado final con links a PDF/DOCX
 - `static/watermark.png`: imagen PNG usada como marca de agua en preview
+
+## Despliegue para demo
+
+### Opcion 1 (recomendada): Render + Docker
+Este proyecto **no puede correr completo en GitHub Pages** porque tiene backend (FastAPI), subida de archivos y conversion DOCX -> PDF con LibreOffice.
+
+Pasos:
+
+1. Sube el proyecto a un repositorio en GitHub.
+2. En Render, crea un servicio nuevo desde tu repo.
+3. Render detectara `Dockerfile` automaticamente y desplegara.
+4. Cuando termine, abre la URL publica de Render y prueba el flujo.
+
+Notas:
+- El comando de arranque ya queda configurado en `Dockerfile`.
+- En plan free, el disco es efimero: los archivos en `uploads/` y `output/` se pueden perder al reiniciar.
+
+### Opcion 2: Railway (similar a Render)
+Tambien funciona con este mismo `Dockerfile` conectando el repo desde Railway.

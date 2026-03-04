@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: prototipo-certificados
+    runtime: docker
+    plan: free
+    autoDeploy: true
