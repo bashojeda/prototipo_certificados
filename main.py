@@ -15,12 +15,14 @@ from typing import Dict, Any, List
 app = FastAPI()
 
 templates = Jinja2Templates(directory="templates")
-app.mount("/static", StaticFiles(directory="static"), name="static")
-app.mount("/output", StaticFiles(directory="output"), name="output")
 
+# Crear directorios antes de montarlos como archivos estáticos
 os.makedirs("output/certificados", exist_ok=True)
 os.makedirs("output/previews", exist_ok=True)
 os.makedirs("uploads", exist_ok=True)
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/output", StaticFiles(directory="output"), name="output")
 
 PREVIEW_SESSIONS: Dict[str, Dict[str, Any]] = {}
 
