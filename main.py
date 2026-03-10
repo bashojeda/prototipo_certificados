@@ -10,7 +10,9 @@ import shutil
 import subprocess
 import uuid
 import re
-from typing import Dict, Any, List
+import zipfile
+import json
+from typing import Dict, Any, List, Set
 
 app = FastAPI()
 
@@ -62,44 +64,88 @@ def limpiar_nombre_archivo(nombre: str) -> str:
     return limpio or "certificado"
 
 
-def cargar_registros_excel(file_obj) -> List[Dict[str, str]]:
-    df = pd.read_excel(file_obj)
+def extraer_variables_plantilla(ruta_plantilla: str) -> Set[str]:
+    """
+    Extrae todas las variables {{variable}} de una plantilla DOCX.
+    Lee el XML interno del DOCX (que es un ZIP) y busca patrones.
+    """
+    variables = set()
+    try:
+        with zipfile.ZipFile(ruta_plantilla, 'r') as docx:
+            # Los documentos DOCX tienen el contenido en document.xml
+            with docx.open('word/document.xml') as xml_file:
+                contenido = xml_file.read().decode('utf-8')
+                # Buscar patrones {{ variable }}
+                matches = re.findall(r'\{\{\s*(\w+)\s*\}\}', contenido)
+                variables.update(matches)
+    except Exception as e:
+        print(f"Error extrayendo variables: {e}")
+    
+    return variables
 
-    columnas_requeridas = {"NOMBRE", "CURSO"}
-    faltantes = columnas_requeridas.difference(df.columns)
+
+def cargar_registros_excel(file_obj, variables_requeridas: Set[str]) -> List[Dict[str, str]]:
+    """
+    Carga registros desde Excel detectando dinámicamente las columnas necesarias.
+    """
+    df = pd.read_excel(file_obj)
+    
+    # Hacer case-insensitive: crear mapeo de columnas en minúsculas
+    df_columns_lower = {col.lower(): col for col in df.columns}
+    
+    # Buscar columnas (case-insensitive)
+    faltantes = []
+    columnas_mapeo = {}
+    
+    for var in variables_requeridas:
+        var_lower = var.lower()
+        if var_lower in df_columns_lower:
+            columnas_mapeo[var] = df_columns_lower[var_lower]
+        else:
+            faltantes.append(var)
+    
     if faltantes:
         raise HTTPException(
             status_code=400,
-            detail=f"Faltan columnas requeridas en Excel: {', '.join(sorted(faltantes))}",
+            detail=f"Faltan columnas en Excel: {', '.join(sorted(faltantes))}. Se esperaban: {', '.join(sorted(variables_requeridas))}",
         )
 
     registros: List[Dict[str, str]] = []
     for _, row in df.iterrows():
-        nombre = "" if pd.isna(row["NOMBRE"]) else str(row["NOMBRE"]).strip()
-        curso = "" if pd.isna(row["CURSO"]) else str(row["CURSO"]).strip()
-        if not nombre and not curso:
-            continue
-        registros.append({"nombre": nombre, "curso": curso})
+        registro = {}
+        tiene_datos = False
+        
+        for var, col_real in columnas_mapeo.items():
+            valor = "" if pd.isna(row[col_real]) else str(row[col_real]).strip()
+            registro[var] = valor
+            if valor:
+                tiene_datos = True
+        
+        if tiene_datos:
+            registros.append(registro)
 
     return registros
 
 
 def render_docx_desde_datos(
     ruta_plantilla: str,
-    nombre: str,
-    curso: str,
+    datos: Dict[str, str],
     ruta_docx: str,
     no_valido: bool,
 ) -> None:
+    """
+    Renderiza DOCX con datos dinámicos.
+    datos debe ser un diccionario con las variables de la plantilla.
+    """
     doc = DocxTemplate(ruta_plantilla)
-    doc.render(
-        {
-            "nombre": nombre,
-            "curso": curso,
-            "no_valido": no_valido,
-            "watermark": "NO VALIDO, DOCUMENTO NO OFICIAL",
-        }
-    )
+    
+    # Preparar contexto: agregar variables dinámicas + no_valido
+    contexto = dict(datos)
+    contexto["no_valido"] = no_valido
+    if no_valido:
+        contexto["watermark"] = "NO VALIDO, DOCUMENTO NO OFICIAL"
+    
+    doc.render(contexto)
     doc.save(ruta_docx)
 
 
@@ -117,20 +163,29 @@ async def previsualizar(
     if not plantilla.filename.lower().endswith(".docx"):
         raise HTTPException(status_code=400, detail="La plantilla debe ser un archivo .docx")
 
-    registros = cargar_registros_excel(file.file)
-    if not registros:
-        raise HTTPException(status_code=400, detail="No hay registros validos para previsualizar")
-
+    # Guardar plantilla temporalmente para extraer variables
     session_id = uuid.uuid4().hex
     plantilla_id = f"{session_id}_{os.path.basename(plantilla.filename)}"
     ruta_plantilla = os.path.join("uploads", plantilla_id)
 
     with open(ruta_plantilla, "wb") as f:
+        await plantilla.seek(0)
         shutil.copyfileobj(plantilla.file, f)
+
+    # Extraer variables de la plantilla
+    variables = extraer_variables_plantilla(ruta_plantilla)
+    if not variables:
+        raise HTTPException(status_code=400, detail="No se encontraron variables en la plantilla DOCX")
+
+    # Cargar Excel con las variables detectadas
+    registros = cargar_registros_excel(file.file, variables)
+    if not registros:
+        raise HTTPException(status_code=400, detail="No hay registros validos para previsualizar")
 
     PREVIEW_SESSIONS[session_id] = {
         "plantilla_path": ruta_plantilla,
         "rows": registros,
+        "variables": variables,
     }
 
     return templates.TemplateResponse(
@@ -139,12 +194,14 @@ async def previsualizar(
             "request": request,
             "session_id": session_id,
             "rows": list(enumerate(registros)),
+            "variables": sorted(variables),
+            "variables_json": json.dumps(sorted(variables)),
         },
     )
 
 
 @app.get("/preview/{session_id}/{row_id}")
-def preview_pdf(session_id: str, row_id: int, nombre: str, curso: str):
+async def preview_pdf(request: Request, session_id: str, row_id: int):
     session = PREVIEW_SESSIONS.get(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Sesion de previsualizacion no encontrada")
@@ -152,17 +209,28 @@ def preview_pdf(session_id: str, row_id: int, nombre: str, curso: str):
     if row_id < 0 or row_id >= len(session["rows"]):
         raise HTTPException(status_code=404, detail="Registro no encontrado")
 
+    # Obtener datos del registro
+    registro_base = session["rows"][row_id]
+    
+    # Obtener datos editados del formulario si existen
+    query_params = request.query_params
+    datos = {}
+    for var in session["variables"]:
+        # Buscar en query params o usar el valor base
+        datos[var] = query_params.get(var, registro_base.get(var, ""))
+
     carpeta_preview = os.path.join("output", "previews", session_id)
     os.makedirs(carpeta_preview, exist_ok=True)
 
-    base_nombre = limpiar_nombre_archivo(f"preview_{row_id}_{nombre}")
+    # Usar primera variable para nombrar archivo
+    primera_var = list(session["variables"])[0] if session["variables"] else "preview"
+    base_nombre = limpiar_nombre_archivo(f"preview_{row_id}_{datos.get(primera_var, '')}")
     ruta_docx = os.path.join(carpeta_preview, f"{base_nombre}.docx")
 
     try:
         render_docx_desde_datos(
             session["plantilla_path"],
-            nombre=nombre,
-            curso=curso,
+            datos=datos,
             ruta_docx=ruta_docx,
             no_valido=True,
         )
@@ -180,15 +248,26 @@ def preview_pdf(session_id: str, row_id: int, nombre: str, curso: str):
 
 
 @app.get("/visor-preview/{session_id}/{row_id}", response_class=HTMLResponse)
-def visor_preview(request: Request, session_id: str, row_id: int, nombre: str, curso: str):
+def visor_preview(request: Request, session_id: str, row_id: int):
+    session = PREVIEW_SESSIONS.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Sesion no encontrada")
+    
+    # Obtener datos editados desde query params
+    query_params = request.query_params
+    datos = {}
+    for var in session["variables"]:
+        datos[var] = query_params.get(var, session["rows"][row_id].get(var, ""))
+    
     return templates.TemplateResponse(
         "visor_preview.html",
         {
             "request": request,
             "session_id": session_id,
             "row_id": row_id,
-            "nombre": nombre,
-            "curso": curso,
+            "datos": datos,
+            "datos_json": json.dumps(datos),
+            "variables": sorted(session["variables"]),
         },
     )
 
@@ -218,17 +297,21 @@ async def generar_final(
         if idx < 0 or idx >= len(session["rows"]):
             continue
 
-        nombre = str(form.get(f"nombre_{idx}", session["rows"][idx]["nombre"]))
-        curso = str(form.get(f"curso_{idx}", session["rows"][idx]["curso"]))
+        # Construir datos dinámicamente desde el formulario
+        datos = {}
+        for var in session["variables"]:
+            valor_form = form.get(f"{var}_{idx}")
+            datos[var] = str(valor_form) if valor_form else session["rows"][idx].get(var, "")
 
-        nombre_archivo = limpiar_nombre_archivo(nombre)
+        # Usar primera variable para nombrar archivo
+        primera_var = list(session["variables"])[0] if session["variables"] else "certificado"
+        nombre_archivo = limpiar_nombre_archivo(datos.get(primera_var, "certificado"))
         ruta_docx = os.path.join("output", "certificados", f"{nombre_archivo}.docx")
 
         try:
             render_docx_desde_datos(
                 session["plantilla_path"],
-                nombre=nombre,
-                curso=curso,
+                datos=datos,
                 ruta_docx=ruta_docx,
                 no_valido=False,
             )
@@ -238,7 +321,7 @@ async def generar_final(
 
         generados.append(
             {
-                "nombre": nombre,
+                "nombre": nombre_archivo,
                 "pdf": "/output/certificados/" + os.path.basename(ruta_pdf),
                 "docx": "/output/certificados/" + os.path.basename(ruta_docx),
             }

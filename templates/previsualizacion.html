@@ -47,8 +47,9 @@
             <thead>
                 <tr>
                     <th>Seleccionar</th>
-                    <th>Nombre</th>
-                    <th>Curso</th>
+                    {% for var in variables %}
+                    <th>{{ var }}</th>
+                    {% endfor %}
                     <th>Previsualizar PDF</th>
                 </tr>
             </thead>
@@ -58,14 +59,13 @@
                     <td>
                         <input type="checkbox" class="selector" name="selected_ids" value="{{ idx }}" checked>
                     </td>
+                    {% for var in variables %}
                     <td>
-                        <input type="text" id="nombre_{{ idx }}" name="nombre_{{ idx }}" value="{{ row.nombre }}" required>
+                        <input type="text" id="{{ var }}_{{ idx }}" name="{{ var }}_{{ idx }}" value="{{ row.get(var, '') }}" required>
                     </td>
+                    {% endfor %}
                     <td>
-                        <input type="text" id="curso_{{ idx }}" name="curso_{{ idx }}" value="{{ row.curso }}" required>
-                    </td>
-                    <td>
-                        <button type="button" onclick="abrirPreview({{ idx }})">Ver PDF</button>
+                        <button type="button" onclick="abrirPreview('{{ idx }}')">Ver PDF</button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -78,31 +78,59 @@
         </div>
     </form>
 
+    <div id="config" data-variables='{{ variables_json }}' style="display:none;"></div>
+
     <script>
-        const seleccionarTodos = document.getElementById('seleccionar-todos');
-        const selectors = document.querySelectorAll('.selector');
+        document.addEventListener('DOMContentLoaded', function() {
+            const configDiv = document.getElementById('config');
+            let variablesStr = configDiv.getAttribute('data-variables');
+            let variables = [];
+            
+            try {
+                if (variablesStr && variablesStr.trim() && variablesStr !== '[]') {
+                    variables = JSON.parse(variablesStr);
+                }
+            } catch (e) {
+                console.error('Error parsing variables:', e);
+                console.log('Variables string:', variablesStr);
+            }
+            
+            const seleccionarTodos = document.getElementById('seleccionar-todos');
+            const selectors = document.querySelectorAll('.selector');
 
-        seleccionarTodos.addEventListener('change', function () {
+            seleccionarTodos.addEventListener('change', function () {
+                selectors.forEach((cb) => {
+                    cb.checked = this.checked;
+                });
+            });
+
             selectors.forEach((cb) => {
-                cb.checked = this.checked;
+                cb.addEventListener('change', function () {
+                    const total = selectors.length;
+                    const marcados = Array.from(selectors).filter((x) => x.checked).length;
+                    seleccionarTodos.checked = marcados === total;
+                });
             });
-        });
 
-        selectors.forEach((cb) => {
-            cb.addEventListener('change', function () {
-                const total = selectors.length;
-                const marcados = Array.from(selectors).filter((x) => x.checked).length;
-                seleccionarTodos.checked = marcados === total;
-            });
+            window.abrirPreview = function(idx) {
+                idx = parseInt(idx, 10);
+                const sessionId = "{{ session_id }}";
+                let url = `/visor-preview/${sessionId}/${idx}?`;
+                
+                // Construir parámetros dinámicamente desde los inputs
+                const params = [];
+                variables.forEach(var_name => {
+                    const input = document.getElementById(`${var_name}_${idx}`);
+                    if (input) {
+                        const valor = input.value;
+                        params.push(`${var_name}=${encodeURIComponent(valor)}`);
+                    }
+                });
+                
+                url += params.join('&');
+                window.open(url, '_blank');
+            };
         });
-
-        function abrirPreview(idx) {
-            const nombre = document.getElementById(`nombre_${idx}`).value;
-            const curso = document.getElementById(`curso_${idx}`).value;
-            const sessionId = `{{ session_id }}`;
-            const url = `/visor-preview/${sessionId}/${idx}?nombre=${encodeURIComponent(nombre)}&curso=${encodeURIComponent(curso)}`;
-            window.open(url, '_blank');
-        }
     </script>
 </body>
 </html>

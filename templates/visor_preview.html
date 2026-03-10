@@ -36,9 +36,40 @@
     </style>
 </head>
 <body>
-    <div class="contenedor">
-        <iframe src="/preview/{{ session_id }}/{{ row_id }}?nombre={{ nombre | urlencode }}&curso={{ curso | urlencode }}"></iframe>
+    <div class="contenedor" id="app" data-session="{{ session_id }}" data-row="{{ row_id }}" data-datos='{{ datos_json }}'>
+        <iframe id="preview-frame"></iframe>
         <img class="watermark-img" src="/static/watermark.png" alt="Marca de agua">
     </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const appDiv = document.getElementById('app');
+            const sessionId = appDiv.getAttribute('data-session');
+            const rowId = parseInt(appDiv.getAttribute('data-row'), 10);
+            
+            let datosStr = appDiv.getAttribute('data-datos');
+            let datos = {};
+            try {
+                if (datosStr && datosStr.trim() && datosStr !== '{}') {
+                    datos = JSON.parse(datosStr);
+                }
+            } catch (e) {
+                console.error('Error parsing datos:', e);
+                console.log('Datos string:', datosStr);
+            }
+            
+            // Construir URL con parámetros dinámicos
+            let url = `/preview/${sessionId}/${rowId}?`;
+            const params = [];
+            if (datos && typeof datos === 'object') {
+                for (const [key, value] of Object.entries(datos)) {
+                    params.push(`${key}=${encodeURIComponent(value)}`);
+                }
+            }
+            url += params.join('&');
+            
+            document.getElementById('preview-frame').src = url;
+        });
+    </script>
 </body>
 </html>
