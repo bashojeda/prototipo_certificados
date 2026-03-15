@@ -2,73 +2,199 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Visor de previsualizacion</title>
+    <title>Editor de previsualizacion</title>
     <style>
-        html, body {
-            width: 100%;
-            height: 100%;
-            margin: 0;
-            overflow: hidden;
-            background: #222;
-        }
-        .contenedor {
-            position: relative;
-            width: 100%;
-            height: 100%;
-        }
-        iframe {
-            width: 100%;
-            height: 100%;
-            border: 0;
-            background: #fff;
-        }
-        .watermark-img {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: min(70vw, 900px);
-            transform: translate(-50%, -50%) rotate(-28deg);
-            opacity: 0.13;
-            pointer-events: none;
-            user-select: none;
-            z-index: 10;
-        }
+        body { margin: 0; font-family: Arial, sans-serif; background: #f4f4f4; }
+        .toolbar { padding: 12px; background: #fff; border-bottom: 1px solid #ddd; display: flex; align-items: center; gap: 12px; }
+        .toolbar span { font-weight: 600; }
+        .main { display: flex; height: calc(100vh - 64px); }
+        .left-panel { width: 320px; border-right: 1px solid #ddd; padding: 12px; overflow-y: auto; background: #fff; }
+        .viewer-panel { flex: 1; position: relative; background: #000; }
+        #preview-frame { width: 100%; height: 100%; border: 0; display: block; }
+        .drag-img { position: absolute; width: 160px; height: auto; cursor: move; z-index: 20; opacity: .9; border: 2px dashed #fff; box-shadow: 0 0 8px rgba(0,0,0,.8); }
+        .drag-img:active { opacity: 1; }
+        .controls { margin-top: 10px; background-color: #fafafa; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        .controls label { display: block; margin: 6px 0 2px; font-size: 0.95rem; }
+        .controls input { width: 100%; padding: 5px 6px; box-sizing: border-box; }
+        button { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; }
+        button.primary { background: #007acc; color: #fff; }
+        button.secondary { background: #e1e1e1; }
     </style>
 </head>
 <body>
-    <div class="contenedor" id="app" data-session="{{ session_id }}" data-row="{{ row_id }}" data-datos='{{ datos_json }}'>
-        <iframe id="preview-frame"></iframe>
-        <img class="watermark-img" src="/static/watermark.png" alt="Marca de agua">
+    <div class="toolbar">
+        <span>Vista interactiva del certificado</span>
+        <a href="/dashboard">Volver</a>
+        <a href="/certificados">Certificados existentes</a>
     </div>
-    
+
+    <div class="main">
+        <div class="left-panel">
+            <h3>Archivos cargados</h3>
+            <ul>
+                <li>Plantilla: <a href="/uploads/{{ plantilla_nombre }}" target="_blank">{{ plantilla_nombre }}</a></li>
+                {% if sello_archivo %}
+                <li>Sello: <a href="/uploads/{{ sello_archivo }}" target="_blank">{{ sello_archivo }}</a></li>
+                {% endif %}
+                {% if firma_archivo %}
+                <li>Firma: <a href="/uploads/{{ firma_archivo }}" target="_blank">{{ firma_archivo }}</a></li>
+                {% endif %}
+            </ul>
+
+            <div class="controls">
+                <h4>Coordenadas actuales</h4>
+                <label>Sello X (pulgadas): <span id="ver-sello-x">{{ sello_x }}</span></label>
+                <label>Sello Y (pulgadas): <span id="ver-sello-y">{{ sello_y }}</span></label>
+                <label>Firma X (pulgadas): <span id="ver-firma-x">{{ firma_x }}</span></label>
+                <label>Firma Y (pulgadas): <span id="ver-firma-y">{{ firma_y }}</span></label>
+            </div>
+
+            <button class="primary" id="guardar-btn">Guardar y refrescar preview</button>
+            <button class="secondary" id="restablecer-btn">Restablecer posiciones</button>
+
+            <div class="controls">
+                <p><strong>Nota:</strong> Arrastra las imágenes en la vista para ajustar ubicación. Esto actualiza la sesión y luego genera el documento con esa posición.</p>
+            </div>
+        </div>
+
+        <div class="viewer-panel" id="viewer-panel">
+            <iframe id="preview-frame" src="/preview/{{ session_id }}/{{ row_id }}"></iframe>
+            {% if sello_archivo %}
+            <img id="sello-img" class="drag-img" src="/uploads/{{ sello_archivo }}" data-x="{{ sello_x }}" data-y="{{ sello_y }}" alt="Sello" />
+            {% endif %}
+            {% if firma_archivo %}
+            <img id="firma-img" class="drag-img" src="/uploads/{{ firma_archivo }}" data-x="{{ firma_x }}" data-y="{{ firma_y }}" alt="Firma" />
+            {% endif %}
+        </div>
+    </div>
+
+    <form id="coord-form" style="display: none;">
+        <input type="hidden" name="session_id" value="{{ session_id }}">
+        <input type="hidden" name="sello_x" id="sello_x" value="{{ sello_x }}">
+        <input type="hidden" name="sello_y" id="sello_y" value="{{ sello_y }}">
+        <input type="hidden" name="firma_x" id="firma_x" value="{{ firma_x }}">
+        <input type="hidden" name="firma_y" id="firma_y" value="{{ firma_y }}">
+    </form>
+
     <script>
+        const PAGE_WIDTH_INCH = 8.27;
+        const PAGE_HEIGHT_INCH = 11.69;
+
+        function makeDraggable(imgId, coordXEl, coordYEl, fieldX, fieldY) {
+            const item = document.getElementById(imgId);
+            if (!item) return;
+
+            let pointerId = null;
+
+            function onPointerMove(event) {
+                if (event.pointerId !== pointerId) return;
+                const parentRect = document.getElementById('viewer-panel').getBoundingClientRect();
+                let newX = event.clientX - parentRect.left - item.moveOffsetX;
+                let newY = event.clientY - parentRect.top - item.moveOffsetY;
+                newX = Math.max(0, Math.min(newX, parentRect.width - item.offsetWidth));
+                newY = Math.max(0, Math.min(newY, parentRect.height - item.offsetHeight));
+                item.style.left = newX + 'px';
+                item.style.top = newY + 'px';
+
+                const inchesX = ((newX / parentRect.width) * PAGE_WIDTH_INCH).toFixed(2);
+                const inchesY = ((newY / parentRect.height) * PAGE_HEIGHT_INCH).toFixed(2);
+                coordXEl.textContent = inchesX;
+                coordYEl.textContent = inchesY;
+                fieldX.value = inchesX;
+                fieldY.value = inchesY;
+            }
+
+            function onPointerUp(event) {
+                if (event.pointerId !== pointerId) return;
+                item.releasePointerCapture(pointerId);
+                pointerId = null;
+                window.removeEventListener('pointermove', onPointerMove);
+                window.removeEventListener('pointerup', onPointerUp);
+            }
+
+            item.addEventListener('pointerdown', function(event) {
+                event.preventDefault();
+                pointerId = event.pointerId;
+                item.setPointerCapture(pointerId);
+                const rect = item.getBoundingClientRect();
+                item.moveOffsetX = event.clientX - rect.left;
+                item.moveOffsetY = event.clientY - rect.top;
+
+                window.addEventListener('pointermove', onPointerMove);
+                window.addEventListener('pointerup', onPointerUp);
+            });
+
+            item.addEventListener('dragstart', function(event) {
+                event.preventDefault();
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
-            const appDiv = document.getElementById('app');
-            const sessionId = appDiv.getAttribute('data-session');
-            const rowId = parseInt(appDiv.getAttribute('data-row'), 10);
-            
-            let datosStr = appDiv.getAttribute('data-datos');
-            let datos = {};
-            try {
-                if (datosStr && datosStr.trim() && datosStr !== '{}') {
-                    datos = JSON.parse(datosStr);
-                }
-            } catch (e) {
-                console.error('Error parsing datos:', e);
-                console.log('Datos string:', datosStr);
+            const selloEl = document.getElementById('sello-img');
+            const firmaEl = document.getElementById('firma-img');
+            const labelSelloX = document.getElementById('ver-sello-x');
+            const labelSelloY = document.getElementById('ver-sello-y');
+            const labelFirmaX = document.getElementById('ver-firma-x');
+            const labelFirmaY = document.getElementById('ver-firma-y');
+            const inputSelloX = document.getElementById('sello_x');
+            const inputSelloY = document.getElementById('sello_y');
+            const inputFirmaX = document.getElementById('firma_x');
+            const inputFirmaY = document.getElementById('firma_y');
+
+            function initImgPosition(item, coordXEl, coordYEl, fieldX, fieldY) {
+                const panelRect = document.getElementById('viewer-panel').getBoundingClientRect();
+                const currentX = parseFloat(item?.dataset.x || 0);
+                const currentY = parseFloat(item?.dataset.y || 0);
+                const pxX = (currentX / PAGE_WIDTH_INCH) * panelRect.width;
+                const pxY = (currentY / PAGE_HEIGHT_INCH) * panelRect.height;
+                item.style.left = `${Math.max(0, Math.min(pxX, panelRect.width - item.offsetWidth))}px`;
+                item.style.top = `${Math.max(0, Math.min(pxY, panelRect.height - item.offsetHeight))}px`;
+                coordXEl.textContent = currentX.toFixed(2);
+                coordYEl.textContent = currentY.toFixed(2);
+                fieldX.value = currentX.toFixed(2);
+                fieldY.value = currentY.toFixed(2);
             }
-            
-            // Construir URL con parámetros dinámicos
-            let url = `/preview/${sessionId}/${rowId}?`;
-            const params = [];
-            if (datos && typeof datos === 'object') {
-                for (const [key, value] of Object.entries(datos)) {
-                    params.push(`${key}=${encodeURIComponent(value)}`);
-                }
+
+            if (selloEl) {
+                initImgPosition(selloEl, labelSelloX, labelSelloY, inputSelloX, inputSelloY);
             }
-            url += params.join('&');
-            
-            document.getElementById('preview-frame').src = url;
+            if (firmaEl) {
+                initImgPosition(firmaEl, labelFirmaX, labelFirmaY, inputFirmaX, inputFirmaY);
+            }
+
+            makeDraggable('sello-img', labelSelloX, labelSelloY, inputSelloX, inputSelloY);
+            makeDraggable('firma-img', labelFirmaX, labelFirmaY, inputFirmaX, inputFirmaY);
+
+            document.getElementById('guardar-btn').addEventListener('click', async function() {
+                const formData = new FormData(document.getElementById('coord-form'));
+                const res = await fetch('/session/ajustar-posicion', { method: 'POST', body: formData });
+                if (res.ok) {
+                    const data = await res.json();
+                    console.log(data);
+                    document.getElementById('preview-frame').src = `/preview/{{ session_id }}/{{ row_id }}?t=${Date.now()}`;
+                } else {
+                    alert('No se pudo guardar la posición.');
+                }
+            });
+
+            document.getElementById('restablecer-btn').addEventListener('click', function() {
+                if (selloEl) {
+                    selloEl.style.left = '0px';
+                    selloEl.style.top = '0px';
+                    labelSelloX.textContent = '0.00';
+                    labelSelloY.textContent = '0.00';
+                    inputSelloX.value = '0.0';
+                    inputSelloY.value = '0.0';
+                }
+                if (firmaEl) {
+                    firmaEl.style.left = '0px';
+                    firmaEl.style.top = '0px';
+                    labelFirmaX.textContent = '0.00';
+                    labelFirmaY.textContent = '0.00';
+                    inputFirmaX.value = '0.0';
+                    inputFirmaY.value = '0.0';
+                }
+            });
         });
     </script>
 </body>

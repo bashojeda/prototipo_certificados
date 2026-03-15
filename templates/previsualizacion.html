@@ -33,7 +33,31 @@
 </head>
 <body>
     <h2>Previsualizacion editable</h2>
-    <p>Edita los datos, revisa cada PDF con marca de agua y luego genera solo los seleccionados.</p>
+    <p>Usuario: <strong>{{ user.username }}</strong> (Rol: {{ user.role }})</p>
+    <p><a href="/dashboard">Dashboard</a> | <a href="/certificados">Ver certificados</a> | <a href="/logout">Cerrar sesión</a></p>
+
+    <div>
+        <strong>Archivos cargados:</strong>
+        <ul>
+            <li>Plantilla: <a href="/uploads/{{ plantilla_nombre }}" target="_blank">{{ plantilla_nombre }}</a></li>
+            {% if sello_archivo %}
+            <li>Sello: <a href="/uploads/{{ sello_archivo }}" target="_blank">{{ sello_nombre or sello_archivo }}</a></li>
+            {% endif %}
+            {% if firma_archivo %}
+            <li>Firma: <a href="/uploads/{{ firma_archivo }}" target="_blank">{{ firma_nombre or firma_archivo }}</a></li>
+            {% endif %}
+        </ul>
+    </div>
+
+    <div>
+        <h3>Posicionamiento de imágenes</h3>
+        <p>Las coordenadas están en pulgadas (x=izquierda, y=arriba / espaciado antes).</p>
+        <p>Sello X: {{ sello_x }} | Sello Y: {{ sello_y }} | Firma X: {{ firma_x }} | Firma Y: {{ firma_y }}</p>
+    </div>
+
+    <div style="margin-bottom: 12px;">
+        <button type="button" onclick="abrirEditorPosicion(0)">Abrir editor de posicion global</button>
+    </div>
 
     <form action="/generar-final" method="post" id="form-final">
         <input type="hidden" name="session_id" value="{{ session_id }}">
@@ -65,7 +89,8 @@
                     </td>
                     {% endfor %}
                     <td>
-                        <button type="button" onclick="abrirPreview('{{ idx }}')">Ver PDF</button>
+                        <button type="button" onclick="abrirPreview('{{ idx }}')">Ver previsualizacion</button>
+                        <button type="button" onclick="abrirEditorPosicion('{{ idx }}')">Editar posicion</button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -115,20 +140,22 @@
             window.abrirPreview = function(idx) {
                 idx = parseInt(idx, 10);
                 const sessionId = "{{ session_id }}";
-                let url = `/visor-preview/${sessionId}/${idx}?`;
-                
-                // Construir parámetros dinámicamente desde los inputs
                 const params = [];
                 variables.forEach(var_name => {
                     const input = document.getElementById(`${var_name}_${idx}`);
                     if (input) {
-                        const valor = input.value;
-                        params.push(`${var_name}=${encodeURIComponent(valor)}`);
+                        params.push(`${var_name}=${encodeURIComponent(input.value)}`);
                     }
                 });
-                
-                url += params.join('&');
-                window.open(url, '_blank');
+                const query = params.length ? `?${params.join('&')}` : '';
+                window.open(`/visor-preview/${sessionId}/${idx}${query}`, '_blank');
+            };
+
+            window.abrirEditorPosicion = function(idx) {
+                const sessionId = "{{ session_id }}";
+                idx = parseInt(idx, 10);
+                if (isNaN(idx)) idx = 0;
+                window.open(`/visor-preview/${sessionId}/${idx}`, '_blank');
             };
         });
     </script>

@@ -7,14 +7,22 @@
 <body>
     <h2>Certificados generados</h2>
 
+    {% if user %}
+    <p>Usuario: <strong>{{ user.username }}</strong> (Rol: {{ user.role }})</p>
+    <p><a href="/dashboard">Ir al dashboard</a> | <a href="/certificados">Ver todos los certificados</a> | <a href="/logout">Cerrar sesión</a></p>
+    {% endif %}
+
     {% if generados %}
         <ul>
             {% for item in generados %}
                 <li>
                     {{ item.nombre }}:
-                    <a href="{{ item.pdf }}" target="_blank">PDF</a>
-                    |
-                    <a href="{{ item.docx }}" target="_blank">DOCX</a>
+                    {% if item.pdf %}
+                        <a href="{{ item.pdf }}" target="_blank">PDF</a>
+                    {% endif %}
+                    {% if item.docx %}
+                        | <a href="{{ item.docx }}" target="_blank">DOCX</a>
+                    {% endif %}
                 </li>
             {% endfor %}
         </ul>
@@ -22,6 +30,6 @@
         <p>No se genero ningun certificado.</p>
     {% endif %}
 
-    <a href="/">Volver al inicio</a>
+    <a href="/dashboard">Volver al dashboard</a>
 </body>
 </html>

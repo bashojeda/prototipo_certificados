@@ -1,0 +1,17 @@
+[
+  {
+    "username": "viewer",
+    "password": "65375049b9e4d7cad6c9ba286fdeb9394b28135a3e84136404cfccfdcc438894",
+    "role": "viewer"
+  },
+  {
+    "username": "editor",
+    "password": "ef5e5a1fb95055e0e56cccf98a41e784a132c14e7f6e1ba244302f0e72b29baf",
+    "role": "editor"
+  },
+  {
+    "username": "creator",
+    "password": "756bf2effa2464565bab831d15a6a12d0fb1e7701294480c379b17f9c1064d0d",
+    "role": "creator"
+  }
+]

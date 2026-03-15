@@ -5,6 +5,11 @@
     <title>Generador de certificados</title>
 </head>
 <body>
+    <h1>Panel de control de certificados</h1>
+    <p>Usuario: <strong>{{ user.username }}</strong> (Rol: {{ user.role }})</p>
+    <p><a href="/logout">Cerrar sesión</a> | <a href="/certificados">Ver certificados generados</a></p>
+
+    {% if can_preview %}
     <h2>Subir datos para previsualizar</h2>
     <form action="/previsualizar" method="post" enctype="multipart/form-data">
         <label for="file">Lista Excel:</label>
@@ -13,7 +18,29 @@
         <label for="plantilla">Plantilla DOCX:</label>
         <input type="file" id="plantilla" name="plantilla" accept=".docx" required>
 
+        <label for="sello">Sello oficial (PNG/JPEG) - opcional:</label>
+        <input type="file" id="sello" name="sello" accept="image/png,image/jpeg">
+
+        <label for="firma">Firma digitalizada (PNG/JPEG) - opcional:</label>
+        <input type="file" id="firma" name="firma" accept="image/png,image/jpeg">
+
+        <h3>Posicionamiento de sello/firma</h3>
+        <label for="sello_x">Sello X (inches):</label>
+        <input type="number" step="0.1" min="0" id="sello_x" name="sello_x" value="0.0">
+
+        <label for="sello_y">Sello Y (inches):</label>
+        <input type="number" step="0.1" min="0" id="sello_y" name="sello_y" value="0.0">
+
+        <label for="firma_x">Firma X (inches):</label>
+        <input type="number" step="0.1" min="0" id="firma_x" name="firma_x" value="0.0">
+
+        <label for="firma_y">Firma Y (inches):</label>
+        <input type="number" step="0.1" min="0" id="firma_y" name="firma_y" value="0.0">
+
         <button type="submit">Previsualizar certificados</button>
     </form>
+    {% else %}
+    <p>No tienes permiso para crear o editar certificados, solo puedes visualizarlos.</p>
+    {% endif %}
 </body>
 </html>

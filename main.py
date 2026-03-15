@@ -1,20 +1,178 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Cookie, status
+from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.requests import Request
 import pandas as pd
 import os
 from docxtpl import DocxTemplate
+from docx import Document
+from docx.shared import Pt, RGBColor, Inches
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 import shutil
 import subprocess
 import uuid
 import re
 import zipfile
 import json
-from typing import Dict, Any, List, Set
+import hashlib
+import secrets
+from typing import Dict, Any, List, Set, Optional
 
 app = FastAPI()
+
+USERS_FILE = "users.json"
+SESSION_COOKIE_NAME = "session_token"
+SESSION_STORE: Dict[str, str] = {}
+
+PERMISSIONS = {
+    "viewer": {"visualizar"},
+    "editor": {"visualizar", "editar"},
+    "creator": {"visualizar", "editar", "crear"},
+}
+
+DEFAULT_USERS = [
+    {"username": "viewer", "password": "viewer123", "role": "viewer"},
+    {"username": "editor", "password": "editor123", "role": "editor"},
+    {"username": "creator", "password": "creator123", "role": "creator"},
+]
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/output", StaticFiles(directory="output"), name="output")
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+
+def save_users(users):
+    with open(USERS_FILE, "w", encoding="utf-8") as f:
+        json.dump(users, f, indent=2, ensure_ascii=False)
+
+
+def load_users():
+    if not os.path.exists(USERS_FILE):
+        usr_copy = []
+        for u in DEFAULT_USERS:
+            usr_copy.append({"username": u["username"], "password": hash_password(u["password"]), "role": u["role"]})
+        save_users(usr_copy)
+
+    with open(USERS_FILE, "r", encoding="utf-8") as f:
+        datos = json.load(f)
+    return datos
+
+
+def get_user(username: str):
+    for u in load_users():
+        if u["username"] == username:
+            return u
+    return None
+
+
+def authenticate_user(username: str, password: str):
+    user = get_user(username)
+    if not user:
+        return None
+    if user["password"] != hash_password(password):
+        return None
+    return user
+
+
+def get_current_user(session_token: Optional[str] = Cookie(None)):
+    if not session_token or session_token not in SESSION_STORE:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No autenticado")
+
+    username = SESSION_STORE[session_token]
+    user = get_user(username)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario inválido")
+    return user
+
+
+def require_permission(permission: str):
+    def permission_dependency(user: dict = Depends(get_current_user)):
+        role = user.get("role")
+        if permission not in PERMISSIONS.get(role, set()):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permisos insuficientes")
+        return user
+
+    return permission_dependency
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request, "message": "Inicia sesión"})
+
+
+@app.post("/login")
+async def login(request: Request, username: str = Form(...), password: str = Form(...)):
+    user = authenticate_user(username, password)
+    if not user:
+        return templates.TemplateResponse("login.html", {"request": request, "message": "Credenciales incorrectas"})
+
+    token = secrets.token_hex(32)
+    SESSION_STORE[token] = username
+
+    response = RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    response.set_cookie(SESSION_COOKIE_NAME, token, httponly=True, samesite="lax")
+    return response
+
+
+@app.get("/logout")
+def logout():
+    response = RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    response.delete_cookie(SESSION_COOKIE_NAME)
+    return response
+
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+    return RedirectResponse(url="/dashboard")
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard(request: Request, user: dict = Depends(get_current_user)):
+    can_preview = "editar" in PERMISSIONS.get(user.get("role"), set()) or "crear" in PERMISSIONS.get(user.get("role"), set())
+    can_generate = "crear" in PERMISSIONS.get(user.get("role"), set())
+    return templates.TemplateResponse(
+        "formulario.html",
+        {
+            "request": request,
+            "user": user,
+            "can_preview": can_preview,
+            "can_generate": can_generate,
+            "message": "Bienvenido",
+        },
+    )
+
+
+@app.get("/certificados", response_class=HTMLResponse)
+def listar_certificados(request: Request, user: dict = Depends(require_permission("visualizar"))):
+    carpeta = "output/certificados"
+    archivos = []
+    if os.path.exists(carpeta):
+        archivos = [f for f in os.listdir(carpeta) if os.path.isfile(os.path.join(carpeta, f))]
+        archivos.sort()
+
+    return templates.TemplateResponse(
+        "resultado.html",
+        {
+            "request": request,
+            "generados": [{"nombre": a, "pdf": f"/output/certificados/{a}"} for a in archivos],
+            "user": user,
+            "message": "Lista de certificados disponibles",
+        },
+    )
+
+
+@app.get("/certificados/{archivo}")
+def descargar_certificado(archivo: str, user: dict = Depends(require_permission("visualizar"))):
+    ruta = os.path.join("output/certificados", archivo)
+    if not os.path.exists(ruta):
+        raise HTTPException(status_code=404, detail="Certificado no encontrado")
+    return FileResponse(path=ruta, filename=archivo, media_type="application/pdf")
+
 
 templates = Jinja2Templates(directory="templates")
 
@@ -22,9 +180,6 @@ templates = Jinja2Templates(directory="templates")
 os.makedirs("output/certificados", exist_ok=True)
 os.makedirs("output/previews", exist_ok=True)
 os.makedirs("uploads", exist_ok=True)
-
-app.mount("/static", StaticFiles(directory="static"), name="static")
-app.mount("/output", StaticFiles(directory="output"), name="output")
 
 PREVIEW_SESSIONS: Dict[str, Dict[str, Any]] = {}
 
@@ -62,6 +217,53 @@ def convertir_docx_a_pdf(ruta_docx: str, carpeta_salida: str) -> str:
 def limpiar_nombre_archivo(nombre: str) -> str:
     limpio = re.sub(r'[\\/:*?"<>|]+', "_", str(nombre)).strip()
     return limpio or "certificado"
+
+
+def aplicar_marca_y_elementos(
+    ruta_docx: str,
+    no_valido: bool = False,
+    sello_path: str = None,
+    firma_path: str = None,
+    sello_x: float = 0.0,
+    sello_y: float = 0.0,
+    firma_x: float = 0.0,
+    firma_y: float = 0.0,
+) -> None:
+    """Agrega marca de agua textual + imágenes de sello/firma al DOCX final."""
+    try:
+        doc = Document(ruta_docx)
+
+        if no_valido:
+            for section in doc.sections:
+                header = section.header
+                if not header.paragraphs:
+                    par = header.add_paragraph()
+                else:
+                    par = header.paragraphs[0]
+                if hasattr(par, "clear"):
+                    par.clear()
+                par.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                run = par.add_run("NO VÁLIDO")
+                run.font.size = Pt(48)
+                run.font.bold = True
+                run.font.color.rgb = RGBColor(255, 0, 0)
+
+        if sello_path and os.path.exists(sello_path):
+            par_sello = doc.add_paragraph()
+            par_sello.paragraph_format.left_indent = Inches(sello_x)
+            par_sello.space_before = Pt(max(0, sello_y * 28.35))
+            par_sello.add_run().add_picture(sello_path, width=Inches(2.5))
+
+        if firma_path and os.path.exists(firma_path):
+            par_firma = doc.add_paragraph()
+            par_firma.paragraph_format.left_indent = Inches(firma_x)
+            par_firma.space_before = Pt(max(0, firma_y * 28.35))
+            par_firma.add_run().add_picture(firma_path, width=Inches(3))
+
+        doc.save(ruta_docx)
+    except Exception as e:
+        print(f"Error aplicando marca o imagenes: {e}")
 
 
 def extraer_variables_plantilla(ruta_plantilla: str) -> Set[str]:
@@ -132,6 +334,12 @@ def render_docx_desde_datos(
     datos: Dict[str, str],
     ruta_docx: str,
     no_valido: bool,
+    sello_path: str = None,
+    firma_path: str = None,
+    sello_x: float = 0.0,
+    sello_y: float = 0.0,
+    firma_x: float = 0.0,
+    firma_y: float = 0.0,
 ) -> None:
     """
     Renderiza DOCX con datos dinámicos.
@@ -148,6 +356,18 @@ def render_docx_desde_datos(
     doc.render(contexto)
     doc.save(ruta_docx)
 
+    # Agregar marca en encabezado y sellos/firma si existen
+    aplicar_marca_y_elementos(
+        ruta_docx,
+        no_valido=no_valido,
+        sello_path=sello_path,
+        firma_path=firma_path,
+        sello_x=sello_x,
+        sello_y=sello_y,
+        firma_x=firma_x,
+        firma_y=firma_y,
+    )
+
 
 @app.get("/", response_class=HTMLResponse)
 def formulario(request: Request):
@@ -159,6 +379,13 @@ async def previsualizar(
     request: Request,
     file: UploadFile = File(...),
     plantilla: UploadFile = File(...),
+    sello: UploadFile = File(None),
+    firma: UploadFile = File(None),
+    sello_x: float = Form(0.0),
+    sello_y: float = Form(0.0),
+    firma_x: float = Form(0.0),
+    firma_y: float = Form(0.0),
+    user: dict = Depends(require_permission("editar")),
 ):
     if not plantilla.filename.lower().endswith(".docx"):
         raise HTTPException(status_code=400, detail="La plantilla debe ser un archivo .docx")
@@ -182,20 +409,61 @@ async def previsualizar(
     if not registros:
         raise HTTPException(status_code=400, detail="No hay registros validos para previsualizar")
 
+    sello_path = None
+    firma_path = None
+
+    if sello is not None and sello.filename:
+        sello_id = f"{session_id}_sello_{os.path.basename(sello.filename)}"
+        sello_path = os.path.join("uploads", sello_id)
+        with open(sello_path, "wb") as f:
+            await sello.seek(0)
+            shutil.copyfileobj(sello.file, f)
+
+    if firma is not None and firma.filename:
+        firma_id = f"{session_id}_firma_{os.path.basename(firma.filename)}"
+        firma_path = os.path.join("uploads", firma_id)
+        with open(firma_path, "wb") as f:
+            await firma.seek(0)
+            shutil.copyfileobj(firma.file, f)
+
+    sello_archivo = os.path.basename(sello_path) if sello_path else None
+    firma_archivo = os.path.basename(firma_path) if firma_path else None
+
     PREVIEW_SESSIONS[session_id] = {
         "plantilla_path": ruta_plantilla,
+        "plantilla_nombre": os.path.basename(plantilla.filename),
         "rows": registros,
         "variables": variables,
+        "sello_path": sello_path,
+        "firma_path": firma_path,
+        "sello_nombre": os.path.basename(sello.filename) if sello is not None and sello.filename else None,
+        "firma_nombre": os.path.basename(firma.filename) if firma is not None and firma.filename else None,
+        "sello_archivo": sello_archivo,
+        "firma_archivo": firma_archivo,
+        "sello_x": sello_x,
+        "sello_y": sello_y,
+        "firma_x": firma_x,
+        "firma_y": firma_y,
     }
 
     return templates.TemplateResponse(
         "previsualizacion.html",
         {
             "request": request,
+            "user": user,
             "session_id": session_id,
             "rows": list(enumerate(registros)),
             "variables": sorted(variables),
             "variables_json": json.dumps(sorted(variables)),
+            "plantilla_nombre": os.path.basename(plantilla.filename),
+            "sello_nombre": os.path.basename(sello.filename) if sello is not None and sello.filename else None,
+            "firma_nombre": os.path.basename(firma.filename) if firma is not None and firma.filename else None,
+            "sello_archivo": sello_archivo,
+            "firma_archivo": firma_archivo,
+            "sello_x": sello_x,
+            "sello_y": sello_y,
+            "firma_x": firma_x,
+            "firma_y": firma_y,
         },
     )
 
@@ -233,6 +501,12 @@ async def preview_pdf(request: Request, session_id: str, row_id: int):
             datos=datos,
             ruta_docx=ruta_docx,
             no_valido=True,
+            sello_path=session.get("sello_path"),
+            firma_path=session.get("firma_path"),
+            sello_x=session.get("sello_x", 0.0),
+            sello_y=session.get("sello_y", 0.0),
+            firma_x=session.get("firma_x", 0.0),
+            firma_y=session.get("firma_y", 0.0),
         )
         ruta_pdf = convertir_docx_a_pdf(ruta_docx, carpeta_preview)
     except RuntimeError as exc:
@@ -248,7 +522,7 @@ async def preview_pdf(request: Request, session_id: str, row_id: int):
 
 
 @app.get("/visor-preview/{session_id}/{row_id}", response_class=HTMLResponse)
-def visor_preview(request: Request, session_id: str, row_id: int):
+def visor_preview(request: Request, session_id: str, row_id: int, user: dict = Depends(require_permission("visualizar"))):
     session = PREVIEW_SESSIONS.get(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Sesion no encontrada")
@@ -263,13 +537,41 @@ def visor_preview(request: Request, session_id: str, row_id: int):
         "visor_preview.html",
         {
             "request": request,
+            "user": user,
             "session_id": session_id,
             "row_id": row_id,
             "datos": datos,
             "datos_json": json.dumps(datos),
             "variables": sorted(session["variables"]),
+            "sello_archivo": session.get("sello_archivo"),
+            "firma_archivo": session.get("firma_archivo"),
+            "sello_x": session.get("sello_x", 0.0),
+            "sello_y": session.get("sello_y", 0.0),
+            "firma_x": session.get("firma_x", 0.0),
+            "firma_y": session.get("firma_y", 0.0),
         },
     )
+
+
+@app.post("/session/ajustar-posicion")
+def ajustar_posicion(
+    session_id: str = Form(...),
+    sello_x: float = Form(0.0),
+    sello_y: float = Form(0.0),
+    firma_x: float = Form(0.0),
+    firma_y: float = Form(0.0),
+    user: dict = Depends(require_permission("editar")),
+):
+    session = PREVIEW_SESSIONS.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Sesion no encontrada")
+
+    session["sello_x"] = sello_x
+    session["sello_y"] = sello_y
+    session["firma_x"] = firma_x
+    session["firma_y"] = firma_y
+
+    return {"ok": True, "message": "Posicion actualizada"}
 
 
 @app.post("/generar-final", response_class=HTMLResponse)
@@ -277,6 +579,7 @@ async def generar_final(
     request: Request,
     session_id: str = Form(...),
     selected_ids: List[str] = Form(default=[]),
+    user: dict = Depends(require_permission("crear")),
 ):
     session = PREVIEW_SESSIONS.get(session_id)
     if not session:
@@ -290,6 +593,11 @@ async def generar_final(
 
     if not ids_seleccionados:
         raise HTTPException(status_code=400, detail="Debes seleccionar al menos un certificado")
+
+    sello_x = float(form.get("sello_x", session.get("sello_x", 0.0)) or 0.0)
+    sello_y = float(form.get("sello_y", session.get("sello_y", 0.0)) or 0.0)
+    firma_x = float(form.get("firma_x", session.get("firma_x", 0.0)) or 0.0)
+    firma_y = float(form.get("firma_y", session.get("firma_y", 0.0)) or 0.0)
 
     generados = []
     for id_txt in ids_seleccionados:
@@ -314,6 +622,12 @@ async def generar_final(
                 datos=datos,
                 ruta_docx=ruta_docx,
                 no_valido=False,
+                sello_path=session.get("sello_path"),
+                firma_path=session.get("firma_path"),
+                sello_x=sello_x,
+                sello_y=sello_y,
+                firma_x=firma_x,
+                firma_y=firma_y,
             )
             ruta_pdf = convertir_docx_a_pdf(ruta_docx, os.path.join("output", "certificados"))
         except RuntimeError as exc:
@@ -331,6 +645,7 @@ async def generar_final(
         "resultado.html",
         {
             "request": request,
+            "user": user,
             "generados": generados,
         },
     )
