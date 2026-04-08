@@ -135,8 +135,12 @@ def logout():
 
 
 @app.get("/", response_class=HTMLResponse)
-def home():
-    return RedirectResponse(url="/dashboard")
+def home(request: Request, session_token: Optional[str] = Cookie(None)):
+    # Si tiene sesión válida, ir a dashboard; si no, ir a login
+    if session_token and session_token in SESSION_STORE:
+        return RedirectResponse(url="/dashboard")
+    else:
+        return RedirectResponse(url="/login")
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -377,9 +381,7 @@ def render_docx_desde_datos(
     )
 
 
-@app.get("/", response_class=HTMLResponse)
-def formulario(request: Request):
-    return templates.TemplateResponse("formulario.html", {"request": request})
+
 
 
 @app.post("/previsualizar", response_class=HTMLResponse)
