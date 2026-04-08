@@ -37,6 +37,14 @@ DEFAULT_USERS = [
     {"username": "creator", "password": "creator123", "role": "creator"},
 ]
 
+# Crear directorios necesarios si no existen
+os.makedirs("static", exist_ok=True)
+os.makedirs("output", exist_ok=True)
+os.makedirs("output/certificados", exist_ok=True)
+os.makedirs("output/previews", exist_ok=True)
+os.makedirs("uploads", exist_ok=True)
+os.makedirs("templates", exist_ok=True)
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/output", StaticFiles(directory="output"), name="output")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
