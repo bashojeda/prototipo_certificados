@@ -49,6 +49,9 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/output", StaticFiles(directory="output"), name="output")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
+# Inicializar templates aquí, antes de usar en las rutas
+templates = Jinja2Templates(directory="templates")
+
 
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
@@ -184,9 +187,6 @@ def descargar_certificado(archivo: str, user: dict = Depends(require_permission(
     if not os.path.exists(ruta):
         raise HTTPException(status_code=404, detail="Certificado no encontrado")
     return FileResponse(path=ruta, filename=archivo, media_type="application/pdf")
-
-
-templates = Jinja2Templates(directory="templates")
 
 # Crear directorios antes de montarlos como archivos estáticos
 os.makedirs("output/certificados", exist_ok=True)
