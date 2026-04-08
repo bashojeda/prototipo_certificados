@@ -119,11 +119,9 @@ def require_permission(permission: str):
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
     return templates.TemplateResponse(
-        name="login.html",
-        context={
-            "request": request,
-            "message": "Inicia sesión",
-        },
+        request,
+        "login.html",
+        {"request": request, "message": "Inicia sesión"},
     )
 
 
@@ -134,11 +132,9 @@ async def login(request: Request, username: str = Form(...), password: str = For
     if not user:
         logger.warning(f"Failed login attempt for user: {username}")
         return templates.TemplateResponse(
-            name="login.html",
-            context={
-                "request": request,
-                "message": "Credenciales incorrectas",
-            },
+            request,
+            "login.html",
+            {"request": request, "message": "Credenciales incorrectas"},
         )
 
     token = secrets.token_hex(32)
@@ -186,8 +182,9 @@ def dashboard(request: Request, user: dict = Depends(get_current_user)):
         can_preview = "editar" in PERMISSIONS.get(user.get("role"), set()) or "crear" in PERMISSIONS.get(user.get("role"), set())
         can_generate = "crear" in PERMISSIONS.get(user.get("role"), set())
         return templates.TemplateResponse(
-            name="formulario.html",
-            context={
+            request,
+            "formulario.html",
+            {
                 "request": request,
                 "user": user,
                 "can_preview": can_preview,
@@ -210,8 +207,9 @@ def listar_certificados(request: Request, user: dict = Depends(require_permissio
         archivos.sort()
 
     return templates.TemplateResponse(
-        name="resultado.html",
-        context={
+        request,
+        "resultado.html",
+        {
             "request": request,
             "generados": [{"nombre": a, "pdf": f"/output/certificados/{a}"} for a in archivos],
             "user": user,
@@ -496,8 +494,9 @@ async def previsualizar(
     }
 
     return templates.TemplateResponse(
-        name="previsualizacion.html",
-        context={
+        request,
+        "previsualizacion.html",
+        {
             "request": request,
             "user": user,
             "session_id": session_id,
@@ -583,8 +582,9 @@ def visor_preview(request: Request, session_id: str, row_id: int, user: dict = D
         datos[var] = query_params.get(var, session["rows"][row_id].get(var, ""))
     
     return templates.TemplateResponse(
-        name="visor_preview.html",
-        context={
+        request,
+        "visor_preview.html",
+        {
             "request": request,
             "user": user,
             "session_id": session_id,
@@ -691,8 +691,9 @@ async def generar_final(
         )
 
     return templates.TemplateResponse(
-        name="resultado.html",
-        context={
+        request,
+        "resultado.html",
+        {
             "request": request,
             "user": user,
             "generados": generados,
