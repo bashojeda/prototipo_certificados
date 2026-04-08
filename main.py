@@ -16,14 +16,15 @@ import re
 import zipfile
 import json
 import hashlib
-import secrets
-from typing import Dict, Any, List, Set, Optional
+import logging
 
-app = FastAPI()
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-USERS_FILE = "users.json"
-SESSION_COOKIE_NAME = "session_token"
-SESSION_STORE: Dict[str, str] = {}
+# ... existing code ...
+
+SESSION_STORE: Dict[str, dict] = {}  # Cambiar para almacenar más info de la sesión
 
 PERMISSIONS = {
     "viewer": {"visualizar"},
@@ -92,11 +93,14 @@ def authenticate_user(username: str, password: str):
 
 def get_current_user(session_token: Optional[str] = Cookie(None)):
     if not session_token or session_token not in SESSION_STORE:
+        logger.warning("No session token or invalid token")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No autenticado")
 
-    username = SESSION_STORE[session_token]
+    session_data = SESSION_STORE[session_token]
+    username = session_data["username"]
     user = get_user(username)
     if not user:
+        logger.error(f"User {username} not found in users database")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario inválido")
     return user
 
@@ -124,8 +128,10 @@ def login_page(request: Request):
 
 @app.post("/login")
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):
+    logger.info(f"Login attempt for user: {username}")
     user = authenticate_user(username, password)
     if not user:
+        logger.warning(f"Failed login attempt for user: {username}")
         return templates.TemplateResponse(
             name="login.html",
             context={
@@ -135,15 +141,29 @@ async def login(request: Request, username: str = Form(...), password: str = For
         )
 
     token = secrets.token_hex(32)
-    SESSION_STORE[token] = username
+    SESSION_STORE[token] = {
+        "username": username,
+        "created_at": secrets.token_hex(16)  # Simple timestamp
+    }
+    logger.info(f"Successful login for user: {username}, token: {token[:8]}...")
 
     response = RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
-    response.set_cookie(SESSION_COOKIE_NAME, token, httponly=True, samesite="lax")
+    response.set_cookie(
+        SESSION_COOKIE_NAME,
+        token,
+        httponly=True,
+        samesite="lax",
+        secure=True,  # Importante para HTTPS en Render
+        max_age=3600  # 1 hora
+    )
     return response
 
 
 @app.get("/logout")
-def logout():
+def logout(session_token: Optional[str] = Cookie(None)):
+    if session_token and session_token in SESSION_STORE:
+        del SESSION_STORE[session_token]
+        logger.info(f"User logged out, session {session_token[:8]}... cleared")
     response = RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
     response.delete_cookie(SESSION_COOKIE_NAME)
     return response
@@ -160,18 +180,24 @@ def home(request: Request, session_token: Optional[str] = Cookie(None)):
 
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request, user: dict = Depends(get_current_user)):
-    can_preview = "editar" in PERMISSIONS.get(user.get("role"), set()) or "crear" in PERMISSIONS.get(user.get("role"), set())
-    can_generate = "crear" in PERMISSIONS.get(user.get("role"), set())
-    return templates.TemplateResponse(
-        name="formulario.html",
-        context={
-            "request": request,
-            "user": user,
-            "can_preview": can_preview,
-            "can_generate": can_generate,
-            "message": "Bienvenido",
-        },
-    )
+    try:
+        logger.info(f"Dashboard access for user: {user['username']}")
+        can_preview = "editar" in PERMISSIONS.get(user.get("role"), set()) or "crear" in PERMISSIONS.get(user.get("role"), set())
+        can_generate = "crear" in PERMISSIONS.get(user.get("role"), set())
+        return templates.TemplateResponse(
+            name="formulario.html",
+            context={
+                "request": request,
+                "user": user,
+                "can_preview": can_preview,
+                "can_generate": can_generate,
+                "message": "Bienvenido",
+            },
+        )
+    except Exception as e:
+        logger.error(f"Error in dashboard for user {user.get('username', 'unknown')}: {e}")
+        # En caso de error, redirigir al login
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/certificados", response_class=HTMLResponse)
