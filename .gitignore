@@ -4,11 +4,11 @@ __pycache__/
 *.pyo
 *.pyd
 
-uploads/
-output/
+# uploads/
+# output/
 
-.env
-.env.*
+#.env
+#.env.*
 
 .DS_Store
 Thumbs.db
