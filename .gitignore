@@ -1,8 +1,8 @@
 #.venv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+#__pycache__/
+#*.pyc
+#*.pyo
+#*.pyd
 
 # uploads/
 # output/
@@ -10,5 +10,5 @@ __pycache__/
 #.env
 #.env.*
 
-.DS_Store
-Thumbs.db
+#.DS_Store
+#Thumbs.db
