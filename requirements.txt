@@ -4,3 +4,5 @@ pandas
 openpyxl
 python-multipart
 docxtpl
+python-docx
+jinja2
