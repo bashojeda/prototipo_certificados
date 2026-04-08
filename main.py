@@ -17,6 +17,7 @@ import zipfile
 import json
 import hashlib
 import logging
+import secrets
 from typing import Dict, Any, List, Set, Optional
 
 # Configurar logging
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 USERS_FILE = "users.json"
+SESSION_COOKIE_NAME = "session_token"
 SESSION_STORE: Dict[str, dict] = {}
 
 PERMISSIONS = {
