@@ -113,14 +113,26 @@ def require_permission(permission: str):
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request, "message": "Inicia sesión"})
+    return templates.TemplateResponse(
+        "login.html",
+        {
+            "request": request,
+            "message": "Inicia sesión",
+        },
+    )
 
 
 @app.post("/login")
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):
     user = authenticate_user(username, password)
     if not user:
-        return templates.TemplateResponse("login.html", {"request": request, "message": "Credenciales incorrectas"})
+        return templates.TemplateResponse(
+            "login.html",
+            {
+                "request": request,
+                "message": "Credenciales incorrectas",
+            },
+        )
 
     token = secrets.token_hex(32)
     SESSION_STORE[token] = username
