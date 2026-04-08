@@ -1,8 +1,8 @@
-.git
-.venv
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-uploads
-output
+#.git
+#.venv
+#__pycache__
+#*.pyc
+#*.pyo
+#*.pyd
+#uploads
+#output
