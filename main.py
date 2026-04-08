@@ -17,14 +17,15 @@ import zipfile
 import json
 import hashlib
 import logging
+from typing import Dict, Any, List, Set, Optional
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ... existing code ...
-
-SESSION_STORE: Dict[str, dict] = {}  # Cambiar para almacenar más info de la sesión
+app = FastAPI()
+USERS_FILE = "users.json"
+SESSION_STORE: Dict[str, dict] = {}
 
 PERMISSIONS = {
     "viewer": {"visualizar"},
