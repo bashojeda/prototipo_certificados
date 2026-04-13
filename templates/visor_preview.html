@@ -2,28 +2,36 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Editor de previsualizacion</title>
+    <title>Editor multipagina PDF</title>
     <style>
         body { margin: 0; font-family: Arial, sans-serif; background: #f4f4f4; }
         .toolbar { padding: 12px; background: #fff; border-bottom: 1px solid #ddd; display: flex; align-items: center; gap: 12px; }
         .toolbar span { font-weight: 600; }
         .main { display: flex; height: calc(100vh - 64px); }
-        .left-panel { width: 320px; border-right: 1px solid #ddd; padding: 12px; overflow-y: auto; background: #fff; }
-        .viewer-panel { flex: 1; position: relative; background: #000; }
-        #preview-frame { width: 100%; height: 100%; border: 0; display: block; }
-        .drag-img { position: absolute; width: 160px; height: auto; cursor: move; z-index: 20; opacity: .9; border: 2px dashed #fff; box-shadow: 0 0 8px rgba(0,0,0,.8); }
-        .drag-img:active { opacity: 1; }
+        .left-panel { width: 340px; border-right: 1px solid #ddd; padding: 12px; overflow-y: auto; background: #fff; }
+        .viewer-panel { flex: 1; background: #0f0f0f; display: flex; align-items: center; justify-content: center; position: relative; }
         .controls { margin-top: 10px; background-color: #fafafa; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
         .controls label { display: block; margin: 6px 0 2px; font-size: 0.95rem; }
-        .controls input { width: 100%; padding: 5px 6px; box-sizing: border-box; }
+        .controls input, .controls select { width: 100%; padding: 5px 6px; box-sizing: border-box; }
         button { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; }
         button.primary { background: #007acc; color: #fff; }
         button.secondary { background: #e1e1e1; }
+        .nav { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+        #stage { position: relative; box-shadow: 0 0 12px rgba(0,0,0,.5); background: #fff; visibility: hidden; }
+        #pdf-canvas { display: block; }
+        #overlay-layer { position: absolute; inset: 0; }
+        .overlay-item { position: absolute; border: 2px dashed #1f6feb; cursor: move; user-select: none; touch-action: none; }
+        .overlay-item.active { border-color: #e55353; }
+        .overlay-item img { width: 100%; height: 100%; display: block; pointer-events: none; }
+        .resize-handle {
+            position: absolute; width: 14px; height: 14px; right: -8px; bottom: -8px;
+            background: #fff; border: 2px solid #1f6feb; border-radius: 2px; cursor: nwse-resize;
+        }
     </style>
 </head>
 <body>
     <div class="toolbar">
-        <span>Vista interactiva del certificado</span>
+        <span>Editor WYSIWYG multipagina</span>
         <a href="/dashboard">Volver</a>
         <a href="/certificados">Certificados existentes</a>
     </div>
@@ -42,159 +50,374 @@
             </ul>
 
             <div class="controls">
-                <h4>Coordenadas actuales</h4>
-                <label>Sello X (pulgadas): <span id="ver-sello-x">{{ sello_x }}</span></label>
-                <label>Sello Y (pulgadas): <span id="ver-sello-y">{{ sello_y }}</span></label>
-                <label>Firma X (pulgadas): <span id="ver-firma-x">{{ firma_x }}</span></label>
-                <label>Firma Y (pulgadas): <span id="ver-firma-y">{{ firma_y }}</span></label>
+                <label>Elemento activo</label>
+                <select id="active-element"></select>
+                <label>X (pulgadas): <span id="coord-x">0.00</span></label>
+                <label>Y (pulgadas): <span id="coord-y">0.00</span></label>
+                <label>Página:</label>
+                <input type="number" min="1" step="1" id="coord-page">
+                <label>Ancho (pulgadas):</label>
+                <input type="number" min="0.1" step="0.1" id="coord-width">
             </div>
 
-            <button class="primary" id="guardar-btn">Guardar y refrescar preview</button>
-            <button class="secondary" id="restablecer-btn">Restablecer posiciones</button>
+            <div class="controls">
+                <label>Zoom</label>
+                <input type="range" min="0.3" max="2.0" step="0.1" value="0.8" id="zoom-range">
+                <div id="zoom-label">80%</div>
+            </div>
+
+            <div class="nav">
+                <button type="button" class="secondary" id="prev-page">Anterior</button>
+                <span id="page-label">Página 1 / 1</span>
+                <button type="button" class="secondary" id="next-page">Siguiente</button>
+            </div>
 
             <div class="controls">
-                <p><strong>Nota:</strong> Arrastra las imágenes en la vista para ajustar ubicación. Esto actualiza la sesión y luego genera el documento con esa posición.</p>
+                <button class="primary" id="guardar-btn" type="button">Guardar posiciones</button>
+                <button class="secondary" id="restablecer-btn" type="button">Restablecer</button>
+                <div id="save-status" style="margin-top:8px;font-size:.9rem;color:#333;"></div>
             </div>
         </div>
 
-        <div class="viewer-panel" id="viewer-panel">
-            <iframe id="preview-frame" src="/preview/{{ session_id }}/{{ row_id }}"></iframe>
-            {% if sello_archivo %}
-            <img id="sello-img" class="drag-img" src="/uploads/{{ sello_archivo }}" data-x="{{ sello_x }}" data-y="{{ sello_y }}" alt="Sello" />
-            {% endif %}
-            {% if firma_archivo %}
-            <img id="firma-img" class="drag-img" src="/uploads/{{ firma_archivo }}" data-x="{{ firma_x }}" data-y="{{ firma_y }}" alt="Firma" />
-            {% endif %}
+        <div class="viewer-panel">
+            <div id="stage">
+                <canvas id="pdf-canvas"></canvas>
+                <div id="overlay-layer"></div>
+            </div>
         </div>
     </div>
 
-    <form id="coord-form" style="display: none;">
+    <form id="coord-form" style="display:none;">
         <input type="hidden" name="session_id" value="{{ session_id }}">
         <input type="hidden" name="sello_x" id="sello_x" value="{{ sello_x }}">
         <input type="hidden" name="sello_y" id="sello_y" value="{{ sello_y }}">
         <input type="hidden" name="firma_x" id="firma_x" value="{{ firma_x }}">
         <input type="hidden" name="firma_y" id="firma_y" value="{{ firma_y }}">
+        <input type="hidden" name="sello_width_in" id="sello_width_in_hidden" value="{{ sello_width_in }}">
+        <input type="hidden" name="firma_width_in" id="firma_width_in_hidden" value="{{ firma_width_in }}">
+        <input type="hidden" name="sello_page" id="sello_page_hidden" value="{{ sello_page }}">
+        <input type="hidden" name="firma_page" id="firma_page_hidden" value="{{ firma_page }}">
     </form>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
-        const PAGE_WIDTH_INCH = 8.27;
-        const PAGE_HEIGHT_INCH = 11.69;
+        if (!window.pdfjsLib) {
+            alert("No se pudo cargar pdf.js desde CDN.");
+            throw new Error("pdfjsLib no disponible");
+        }
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-        function makeDraggable(imgId, coordXEl, coordYEl, fieldX, fieldY) {
-            const item = document.getElementById(imgId);
-            if (!item) return;
-
-            let pointerId = null;
-
-            function onPointerMove(event) {
-                if (event.pointerId !== pointerId) return;
-                const parentRect = document.getElementById('viewer-panel').getBoundingClientRect();
-                let newX = event.clientX - parentRect.left - item.moveOffsetX;
-                let newY = event.clientY - parentRect.top - item.moveOffsetY;
-                newX = Math.max(0, Math.min(newX, parentRect.width - item.offsetWidth));
-                newY = Math.max(0, Math.min(newY, parentRect.height - item.offsetHeight));
-                item.style.left = newX + 'px';
-                item.style.top = newY + 'px';
-
-                const inchesX = ((newX / parentRect.width) * PAGE_WIDTH_INCH).toFixed(2);
-                const inchesY = ((newY / parentRect.height) * PAGE_HEIGHT_INCH).toFixed(2);
-                coordXEl.textContent = inchesX;
-                coordYEl.textContent = inchesY;
-                fieldX.value = inchesX;
-                fieldY.value = inchesY;
+        const rawDatos = {{ datos_json|tojson|safe }};
+        const datos = (typeof rawDatos === "string") ? JSON.parse(rawDatos) : rawDatos;
+        const previewParams = new URLSearchParams(datos).toString();
+        const pdfUrlBase = `/preview/{{ session_id }}/{{ row_id }}${previewParams ? "?" + previewParams : ""}`;
+        const state = {
+            pdfDoc: null,
+            currentPage: 1,
+            zoom: 0.8,
+            fitScale: 1.0,
+            renderSeq: 0,
+            renderQueue: Promise.resolve(),
+            pageWidthIn: parseFloat('{{ page_width_in }}') || 8.27,
+            pageHeightIn: parseFloat('{{ page_height_in }}') || 11.69,
+            active: "sello",
+            placements: {
+                sello: { x: parseFloat('{{ sello_x }}') || 0, y: parseFloat('{{ sello_y }}') || 0, page: parseInt('{{ sello_page }}', 10) || 1, width: parseFloat('{{ sello_width_in }}') || 2.5, src: {% if sello_archivo %}"/uploads/{{ sello_archivo }}"{% else %}null{% endif %} },
+                firma: { x: parseFloat('{{ firma_x }}') || 0, y: parseFloat('{{ firma_y }}') || 0, page: parseInt('{{ firma_page }}', 10) || 1, width: parseFloat('{{ firma_width_in }}') || 3.0, src: {% if firma_archivo %}"/uploads/{{ firma_archivo }}"{% else %}null{% endif %} }
             }
+        };
 
-            function onPointerUp(event) {
-                if (event.pointerId !== pointerId) return;
-                item.releasePointerCapture(pointerId);
-                pointerId = null;
-                window.removeEventListener('pointermove', onPointerMove);
-                window.removeEventListener('pointerup', onPointerUp);
+        const canvas = document.getElementById("pdf-canvas");
+        const overlayLayer = document.getElementById("overlay-layer");
+        const stage = document.getElementById("stage");
+        const viewerPanel = document.querySelector(".viewer-panel");
+        const activeElementSelect = document.getElementById("active-element");
+        const coordX = document.getElementById("coord-x");
+        const coordY = document.getElementById("coord-y");
+        const coordPage = document.getElementById("coord-page");
+        const coordWidth = document.getElementById("coord-width");
+        const pageLabel = document.getElementById("page-label");
+        const zoomRange = document.getElementById("zoom-range");
+        const zoomLabel = document.getElementById("zoom-label");
+        const saveStatus = document.getElementById("save-status");
+
+        const itemEls = {};
+
+        function getElementHeightIn(name) {
+            const img = itemEls[name]?.querySelector("img");
+            if (!img || !img.naturalWidth || !img.naturalHeight) return 1.0;
+            return state.placements[name].width * (img.naturalHeight / img.naturalWidth);
+        }
+
+        function inchesToPxX(inches) { return (inches / state.pageWidthIn) * canvas.clientWidth; }
+        function inchesToPxY(inches) { return (inches / state.pageHeightIn) * canvas.clientHeight; }
+        function pxToInchesX(px) { return (px / canvas.clientWidth) * state.pageWidthIn; }
+        function pxToInchesY(px) { return (px / canvas.clientHeight) * state.pageHeightIn; }
+
+        function syncForm() {
+            document.getElementById("sello_x").value = state.placements.sello.x.toFixed(2);
+            document.getElementById("sello_y").value = state.placements.sello.y.toFixed(2);
+            document.getElementById("firma_x").value = state.placements.firma.x.toFixed(2);
+            document.getElementById("firma_y").value = state.placements.firma.y.toFixed(2);
+            document.getElementById("sello_width_in_hidden").value = state.placements.sello.width.toFixed(2);
+            document.getElementById("firma_width_in_hidden").value = state.placements.firma.width.toFixed(2);
+            document.getElementById("sello_page_hidden").value = String(state.placements.sello.page);
+            document.getElementById("firma_page_hidden").value = String(state.placements.firma.page);
+        }
+
+        function refreshSideControls() {
+            const p = state.placements[state.active];
+            coordX.textContent = p.x.toFixed(2);
+            coordY.textContent = p.y.toFixed(2);
+            coordPage.value = p.page;
+            coordWidth.value = p.width.toFixed(2);
+        }
+
+        function positionItem(name) {
+            const p = state.placements[name];
+            const el = itemEls[name];
+            if (!el || !p.src) return;
+            if (p.page !== state.currentPage) {
+                el.style.display = "none";
+                return;
             }
+            el.style.display = "block";
+            el.classList.toggle("active", state.active === name);
+            const widthPx = Math.max(24, inchesToPxX(p.width));
+            const heightPx = Math.max(24, inchesToPxY(getElementHeightIn(name)));
+            const left = Math.max(0, Math.min(inchesToPxX(p.x), canvas.clientWidth - widthPx));
+            const top = Math.max(0, Math.min(inchesToPxY(p.y), canvas.clientHeight - heightPx));
+            el.style.width = `${widthPx}px`;
+            el.style.height = `${heightPx}px`;
+            el.style.left = `${left}px`;
+            el.style.top = `${top}px`;
+        }
 
-            item.addEventListener('pointerdown', function(event) {
-                event.preventDefault();
-                pointerId = event.pointerId;
-                item.setPointerCapture(pointerId);
-                const rect = item.getBoundingClientRect();
-                item.moveOffsetX = event.clientX - rect.left;
-                item.moveOffsetY = event.clientY - rect.top;
+        function updateAllOverlays() {
+            Object.keys(itemEls).forEach(positionItem);
+            refreshSideControls();
+            syncForm();
+        }
 
-                window.addEventListener('pointermove', onPointerMove);
-                window.addEventListener('pointerup', onPointerUp);
+        function calcularFitScale(viewportBase) {
+            const panelW = viewerPanel.clientWidth || viewerPanel.getBoundingClientRect().width || window.innerWidth * 0.7;
+            const panelH = viewerPanel.clientHeight || viewerPanel.getBoundingClientRect().height || window.innerHeight * 0.8;
+            const maxW = Math.max(420, panelW * 0.95);
+            const maxH = Math.max(420, panelH * 0.95);
+            return Math.min(0.9, maxW / viewportBase.width, maxH / viewportBase.height);
+        }
+
+        function attachDragAndResize(name, el) {
+            const handle = document.createElement("div");
+            handle.className = "resize-handle";
+            el.appendChild(handle);
+
+            el.addEventListener("pointerdown", (e) => {
+                if (e.target === handle) return;
+                state.active = name;
+                const startX = e.clientX;
+                const startY = e.clientY;
+                const startLeft = parseFloat(el.style.left || "0");
+                const startTop = parseFloat(el.style.top || "0");
+                const p = state.placements[name];
+                p.page = state.currentPage;
+                function onMove(ev) {
+                    const nextLeft = Math.max(0, Math.min(startLeft + (ev.clientX - startX), canvas.clientWidth - el.offsetWidth));
+                    const nextTop = Math.max(0, Math.min(startTop + (ev.clientY - startY), canvas.clientHeight - el.offsetHeight));
+                    el.style.left = `${nextLeft}px`;
+                    el.style.top = `${nextTop}px`;
+                    p.x = pxToInchesX(nextLeft);
+                    p.y = pxToInchesY(nextTop);
+                    refreshSideControls();
+                    syncForm();
+                }
+                function onUp() {
+                    window.removeEventListener("pointermove", onMove);
+                    window.removeEventListener("pointerup", onUp);
+                    updateAllOverlays();
+                }
+                window.addEventListener("pointermove", onMove);
+                window.addEventListener("pointerup", onUp);
             });
 
-            item.addEventListener('dragstart', function(event) {
-                event.preventDefault();
+            handle.addEventListener("pointerdown", (e) => {
+                e.stopPropagation();
+                state.active = name;
+                const startX = e.clientX;
+                const startWidth = el.offsetWidth;
+                const p = state.placements[name];
+                p.page = state.currentPage;
+                function onMove(ev) {
+                    const nextWidth = Math.max(24, startWidth + (ev.clientX - startX));
+                    const maxWidth = canvas.clientWidth - parseFloat(el.style.left || "0");
+                    const clampedWidth = Math.min(nextWidth, maxWidth);
+                    p.width = Math.max(0.1, pxToInchesX(clampedWidth));
+                    positionItem(name);
+                    refreshSideControls();
+                    syncForm();
+                }
+                function onUp() {
+                    window.removeEventListener("pointermove", onMove);
+                    window.removeEventListener("pointerup", onUp);
+                    updateAllOverlays();
+                }
+                window.addEventListener("pointermove", onMove);
+                window.addEventListener("pointerup", onUp);
             });
         }
 
-        document.addEventListener('DOMContentLoaded', function() {
-            const selloEl = document.getElementById('sello-img');
-            const firmaEl = document.getElementById('firma-img');
-            const labelSelloX = document.getElementById('ver-sello-x');
-            const labelSelloY = document.getElementById('ver-sello-y');
-            const labelFirmaX = document.getElementById('ver-firma-x');
-            const labelFirmaY = document.getElementById('ver-firma-y');
-            const inputSelloX = document.getElementById('sello_x');
-            const inputSelloY = document.getElementById('sello_y');
-            const inputFirmaX = document.getElementById('firma_x');
-            const inputFirmaY = document.getElementById('firma_y');
+        async function renderPage(pageNum) {
+            const renderId = ++state.renderSeq;
+            const page = await state.pdfDoc.getPage(pageNum);
+            const viewportBase = page.getViewport({ scale: 1.0 });
+            state.fitScale = calcularFitScale(viewportBase);
+            const viewport = page.getViewport({ scale: state.fitScale * state.zoom });
+            const dpr = window.devicePixelRatio || 1;
+            const cssWidth = Math.floor(viewport.width);
+            const cssHeight = Math.floor(viewport.height);
+            canvas.width = Math.floor(cssWidth * dpr);
+            canvas.height = Math.floor(cssHeight * dpr);
+            canvas.style.width = `${cssWidth}px`;
+            canvas.style.height = `${cssHeight}px`;
+            stage.style.width = `${cssWidth}px`;
+            stage.style.height = `${cssHeight}px`;
+            overlayLayer.style.width = `${cssWidth}px`;
+            overlayLayer.style.height = `${cssHeight}px`;
 
-            function initImgPosition(item, coordXEl, coordYEl, fieldX, fieldY) {
-                const panelRect = document.getElementById('viewer-panel').getBoundingClientRect();
-                const currentX = parseFloat(item?.dataset.x || 0);
-                const currentY = parseFloat(item?.dataset.y || 0);
-                const pxX = (currentX / PAGE_WIDTH_INCH) * panelRect.width;
-                const pxY = (currentY / PAGE_HEIGHT_INCH) * panelRect.height;
-                item.style.left = `${Math.max(0, Math.min(pxX, panelRect.width - item.offsetWidth))}px`;
-                item.style.top = `${Math.max(0, Math.min(pxY, panelRect.height - item.offsetHeight))}px`;
-                coordXEl.textContent = currentX.toFixed(2);
-                coordYEl.textContent = currentY.toFixed(2);
-                fieldX.value = currentX.toFixed(2);
-                fieldY.value = currentY.toFixed(2);
+            state.pageWidthIn = viewportBase.width / 72.0;
+            state.pageHeightIn = viewportBase.height / 72.0;
+
+            const ctx = canvas.getContext("2d");
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            await page.render({ canvasContext: ctx, viewport }).promise;
+            if (renderId !== state.renderSeq) return;
+            stage.style.visibility = "visible";
+            pageLabel.textContent = `Página ${state.currentPage} / ${state.pdfDoc.numPages}`;
+            updateAllOverlays();
+        }
+
+        function goToPage(pageNum) {
+            state.currentPage = Math.max(1, Math.min(pageNum, state.pdfDoc.numPages));
+            scheduleRender(state.currentPage);
+        }
+
+        let zoomTimer = null;
+        function renderPageDebounced() {
+            if (zoomTimer) clearTimeout(zoomTimer);
+            zoomTimer = setTimeout(() => {
+                scheduleRender(state.currentPage);
+            }, 140);
+        }
+
+        function scheduleRender(pageNum) {
+            state.renderQueue = state.renderQueue
+                .then(() => renderPage(pageNum))
+                .catch((err) => {
+                    console.error("Render error:", err);
+                });
+            return state.renderQueue;
+        }
+
+        function createItem(name, src) {
+            if (!src) return;
+            const el = document.createElement("div");
+            el.className = "overlay-item";
+            const img = document.createElement("img");
+            img.src = src;
+            img.alt = name;
+            el.appendChild(img);
+            overlayLayer.appendChild(el);
+            itemEls[name] = el;
+            attachDragAndResize(name, el);
+            img.addEventListener("load", () => updateAllOverlays());
+        }
+
+        async function init() {
+            if (state.placements.sello.src) {
+                const option = document.createElement("option");
+                option.value = "sello";
+                option.textContent = "Sello";
+                activeElementSelect.appendChild(option);
+            }
+            if (state.placements.firma.src) {
+                const option = document.createElement("option");
+                option.value = "firma";
+                option.textContent = "Firma";
+                activeElementSelect.appendChild(option);
+            }
+            if (!activeElementSelect.options.length) {
+                activeElementSelect.disabled = true;
+                return;
             }
 
-            if (selloEl) {
-                initImgPosition(selloEl, labelSelloX, labelSelloY, inputSelloX, inputSelloY);
-            }
-            if (firmaEl) {
-                initImgPosition(firmaEl, labelFirmaX, labelFirmaY, inputFirmaX, inputFirmaY);
-            }
+            activeElementSelect.value = state.active;
+            createItem("sello", state.placements.sello.src);
+            createItem("firma", state.placements.firma.src);
 
-            makeDraggable('sello-img', labelSelloX, labelSelloY, inputSelloX, inputSelloY);
-            makeDraggable('firma-img', labelFirmaX, labelFirmaY, inputFirmaX, inputFirmaY);
+            zoomRange.value = String(state.zoom);
+            zoomLabel.textContent = `${Math.round(state.zoom * 100)}%`;
+            state.pdfDoc = await pdfjsLib.getDocument(`${pdfUrlBase}${pdfUrlBase.includes("?") ? "&" : "?"}t=${Date.now()}`).promise;
+            await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+            await scheduleRender(state.currentPage);
+            setTimeout(() => {
+                scheduleRender(state.currentPage);
+            }, 120);
 
-            document.getElementById('guardar-btn').addEventListener('click', async function() {
-                const formData = new FormData(document.getElementById('coord-form'));
-                const res = await fetch('/session/ajustar-posicion', { method: 'POST', body: formData });
-                if (res.ok) {
-                    const data = await res.json();
-                    console.log(data);
-                    document.getElementById('preview-frame').src = `/preview/{{ session_id }}/{{ row_id }}?t=${Date.now()}`;
-                } else {
-                    alert('No se pudo guardar la posición.');
-                }
+            document.getElementById("prev-page").addEventListener("click", () => goToPage(state.currentPage - 1));
+            document.getElementById("next-page").addEventListener("click", () => goToPage(state.currentPage + 1));
+            zoomRange.addEventListener("input", async () => {
+                state.zoom = parseFloat(zoomRange.value);
+                zoomLabel.textContent = `${Math.round(state.zoom * 100)}%`;
+                renderPageDebounced();
+            });
+            window.addEventListener("resize", async () => {
+                await scheduleRender(state.currentPage);
+            });
+            activeElementSelect.addEventListener("change", () => {
+                state.active = activeElementSelect.value;
+                updateAllOverlays();
+            });
+            coordPage.addEventListener("change", () => {
+                const p = state.placements[state.active];
+                p.page = Math.max(1, parseInt(coordPage.value || "1", 10));
+                goToPage(p.page);
+            });
+            coordWidth.addEventListener("input", () => {
+                const p = state.placements[state.active];
+                p.width = Math.max(0.1, parseFloat(coordWidth.value || "0.1"));
+                updateAllOverlays();
             });
 
-            document.getElementById('restablecer-btn').addEventListener('click', function() {
-                if (selloEl) {
-                    selloEl.style.left = '0px';
-                    selloEl.style.top = '0px';
-                    labelSelloX.textContent = '0.00';
-                    labelSelloY.textContent = '0.00';
-                    inputSelloX.value = '0.0';
-                    inputSelloY.value = '0.0';
+            document.getElementById("guardar-btn").addEventListener("click", async () => {
+                syncForm();
+                saveStatus.textContent = "Guardando...";
+                const formData = new FormData(document.getElementById("coord-form"));
+                const res = await fetch("/session/ajustar-posicion", { method: "POST", body: formData });
+                if (!res.ok) {
+                    const errorTxt = await res.text();
+                    saveStatus.textContent = "Error al guardar.";
+                    alert(`No se pudo guardar la posicion. Detalle: ${errorTxt}`);
+                    return;
                 }
-                if (firmaEl) {
-                    firmaEl.style.left = '0px';
-                    firmaEl.style.top = '0px';
-                    labelFirmaX.textContent = '0.00';
-                    labelFirmaY.textContent = '0.00';
-                    inputFirmaX.value = '0.0';
-                    inputFirmaY.value = '0.0';
-                }
+                const data = await res.json();
+                saveStatus.textContent = data.message || "Posiciones guardadas.";
+                // Refresca el PDF renderizado para evitar recarga manual de la pagina.
+                state.pdfDoc = await pdfjsLib.getDocument(`${pdfUrlBase}${pdfUrlBase.includes("?") ? "&" : "?"}t=${Date.now()}`).promise;
+                await scheduleRender(state.currentPage);
             });
+
+            document.getElementById("restablecer-btn").addEventListener("click", () => {
+                if (state.placements.sello.src) state.placements.sello = { ...state.placements.sello, x: 0, y: 0, page: 1, width: 2.5 };
+                if (state.placements.firma.src) state.placements.firma = { ...state.placements.firma, x: 0, y: 0, page: 1, width: 3.0 };
+                state.currentPage = 1;
+                updateAllOverlays();
+                goToPage(1);
+            });
+        }
+
+        init().catch((err) => {
+            console.error(err);
+            alert("No se pudo cargar el preview PDF con pdf.js.");
         });
     </script>
 </body>

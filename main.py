@@ -9,6 +9,8 @@ from docxtpl import DocxTemplate
 from docx import Document
 from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import parse_xml
+from docx.oxml.ns import nsdecls
 import shutil
 import subprocess
 import uuid
@@ -18,7 +20,11 @@ import json
 import hashlib
 import logging
 import secrets
+from io import BytesIO
 from typing import Dict, Any, List, Set, Optional
+from pypdf import PdfReader, PdfWriter
+from reportlab.lib.utils import ImageReader
+from reportlab.pdfgen import canvas
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -233,6 +239,8 @@ os.makedirs("output/previews", exist_ok=True)
 os.makedirs("uploads", exist_ok=True)
 
 PREVIEW_SESSIONS: Dict[str, Dict[str, Any]] = {}
+DEFAULT_SELLO_WIDTH_IN = 2.5
+DEFAULT_FIRMA_WIDTH_IN = 3.0
 
 
 def convertir_docx_a_pdf(ruta_docx: str, carpeta_salida: str) -> str:
@@ -265,9 +273,133 @@ def convertir_docx_a_pdf(ruta_docx: str, carpeta_salida: str) -> str:
     return os.path.join(carpeta_salida, f"{base}.pdf")
 
 
+def overlay_imagenes_en_pdf(
+    ruta_pdf_entrada: str,
+    ruta_pdf_salida: str,
+    overlays: List[Dict[str, Any]],
+) -> None:
+    """
+    Dibuja imagenes por pagina sobre un PDF ya generado.
+    Coordenadas en pulgadas desde esquina superior-izquierda.
+    """
+    reader = PdfReader(ruta_pdf_entrada)
+    writer = PdfWriter()
+
+    overlays_por_pagina: Dict[int, List[Dict[str, Any]]] = {}
+    for ov in overlays:
+        idx = int(max(1, ov.get("page", 1))) - 1
+        overlays_por_pagina.setdefault(idx, []).append(ov)
+
+    for page_idx, page in enumerate(reader.pages):
+        if page_idx in overlays_por_pagina:
+            ancho_pt = float(page.mediabox.width)
+            alto_pt = float(page.mediabox.height)
+            packet = BytesIO()
+            c = canvas.Canvas(packet, pagesize=(ancho_pt, alto_pt))
+
+            for ov in overlays_por_pagina[page_idx]:
+                image_path = ov.get("path")
+                if not image_path or not os.path.exists(image_path):
+                    continue
+
+                x_in = float(max(0.0, ov.get("x_in", 0.0)))
+                y_in = float(max(0.0, ov.get("y_in", 0.0)))
+                width_in = float(max(0.1, ov.get("width_in", 1.0)))
+
+                img_reader = ImageReader(image_path)
+                img_w_px, img_h_px = img_reader.getSize()
+                aspect = (img_h_px / img_w_px) if img_w_px else 1.0
+                width_pt = width_in * 72.0
+                height_pt = width_pt * aspect
+                x_pt = x_in * 72.0
+                y_pt = alto_pt - (y_in * 72.0) - height_pt
+
+                c.drawImage(
+                    img_reader,
+                    x_pt,
+                    y_pt,
+                    width=width_pt,
+                    height=height_pt,
+                    preserveAspectRatio=True,
+                    mask="auto",
+                )
+
+            c.save()
+            packet.seek(0)
+            overlay_page = PdfReader(packet).pages[0]
+            page.merge_page(overlay_page)
+
+        writer.add_page(page)
+
+    with open(ruta_pdf_salida, "wb") as out_file:
+        writer.write(out_file)
+
+
 def limpiar_nombre_archivo(nombre: str) -> str:
     limpio = re.sub(r'[\\/:*?"<>|]+', "_", str(nombre)).strip()
     return limpio or "certificado"
+
+
+def obtener_tamano_pagina_pulgadas(ruta_docx: str) -> Dict[str, float]:
+    """Lee tamaño real de página (en pulgadas) desde la primera sección del DOCX."""
+    doc = Document(ruta_docx)
+    seccion = doc.sections[0]
+    return {
+        "page_width_in": float(seccion.page_width.inches),
+        "page_height_in": float(seccion.page_height.inches),
+    }
+
+
+def agregar_imagen_flotante_absoluta(
+    doc: Document,
+    image_path: str,
+    x_in: float,
+    y_in: float,
+    width_in: float,
+) -> None:
+    """
+    Inserta imagen como objeto flotante con posicion absoluta (wp:anchor),
+    relativo al borde superior-izquierdo de la página.
+    """
+    parrafo = doc.add_paragraph()
+    run = parrafo.add_run()
+    inline_shape = run.add_picture(image_path, width=Inches(width_in))
+    inline = inline_shape._inline
+
+    cx = inline.extent.cx
+    cy = inline.extent.cy
+    doc_pr = inline.docPr
+    doc_pr_id = int(doc_pr.get("id"))
+    doc_pr_name = doc_pr.get("name", f"Picture {doc_pr_id}")
+    graphic_xml = inline.graphic.xml
+    x_emu = int(max(0, x_in) * 914400)
+    y_emu = int(max(0, y_in) * 914400)
+
+    anchor = parse_xml(
+        f"""
+        <wp:anchor distT="0" distB="0" distL="0" distR="0"
+            simplePos="0" relativeHeight="251658240" behindDoc="0"
+            locked="0" layoutInCell="1" allowOverlap="1"
+            {nsdecls('wp', 'a', 'pic', 'r')}>
+            <wp:simplePos x="0" y="0"/>
+            <wp:positionH relativeFrom="page">
+                <wp:posOffset>{x_emu}</wp:posOffset>
+            </wp:positionH>
+            <wp:positionV relativeFrom="page">
+                <wp:posOffset>{y_emu}</wp:posOffset>
+            </wp:positionV>
+            <wp:extent cx="{cx}" cy="{cy}"/>
+            <wp:effectExtent l="0" t="0" r="0" b="0"/>
+            <wp:wrapNone/>
+            <wp:docPr id="{doc_pr_id}" name="{doc_pr_name}"/>
+            <wp:cNvGraphicFramePr>
+                <a:graphicFrameLocks noChangeAspect="1"/>
+            </wp:cNvGraphicFramePr>
+            {graphic_xml}
+        </wp:anchor>
+        """
+    )
+    inline.getparent().replace(inline, anchor)
 
 
 def aplicar_marca_y_elementos(
@@ -279,6 +411,9 @@ def aplicar_marca_y_elementos(
     sello_y: float = 0.0,
     firma_x: float = 0.0,
     firma_y: float = 0.0,
+    incluir_imagenes: bool = False,
+    sello_width_in: float = DEFAULT_SELLO_WIDTH_IN,
+    firma_width_in: float = DEFAULT_FIRMA_WIDTH_IN,
 ) -> None:
     """Agrega marca de agua textual + imágenes de sello/firma al DOCX final."""
     try:
@@ -300,17 +435,23 @@ def aplicar_marca_y_elementos(
                 run.font.bold = True
                 run.font.color.rgb = RGBColor(255, 0, 0)
 
-        if sello_path and os.path.exists(sello_path):
-            par_sello = doc.add_paragraph()
-            par_sello.paragraph_format.left_indent = Inches(sello_x)
-            par_sello.space_before = Pt(max(0, sello_y * 28.35))
-            par_sello.add_run().add_picture(sello_path, width=Inches(2.5))
+        if incluir_imagenes and sello_path and os.path.exists(sello_path):
+            agregar_imagen_flotante_absoluta(
+                doc=doc,
+                image_path=sello_path,
+                x_in=sello_x,
+                y_in=sello_y,
+                width_in=sello_width_in,
+            )
 
-        if firma_path and os.path.exists(firma_path):
-            par_firma = doc.add_paragraph()
-            par_firma.paragraph_format.left_indent = Inches(firma_x)
-            par_firma.space_before = Pt(max(0, firma_y * 28.35))
-            par_firma.add_run().add_picture(firma_path, width=Inches(3))
+        if incluir_imagenes and firma_path and os.path.exists(firma_path):
+            agregar_imagen_flotante_absoluta(
+                doc=doc,
+                image_path=firma_path,
+                x_in=firma_x,
+                y_in=firma_y,
+                width_in=firma_width_in,
+            )
 
         doc.save(ruta_docx)
     except Exception as e:
@@ -391,6 +532,9 @@ def render_docx_desde_datos(
     sello_y: float = 0.0,
     firma_x: float = 0.0,
     firma_y: float = 0.0,
+    incluir_imagenes_docx: bool = False,
+    sello_width_in: float = DEFAULT_SELLO_WIDTH_IN,
+    firma_width_in: float = DEFAULT_FIRMA_WIDTH_IN,
 ) -> None:
     """
     Renderiza DOCX con datos dinámicos.
@@ -417,6 +561,9 @@ def render_docx_desde_datos(
         sello_y=sello_y,
         firma_x=firma_x,
         firma_y=firma_y,
+        incluir_imagenes=incluir_imagenes_docx,
+        sello_width_in=sello_width_in,
+        firma_width_in=firma_width_in,
     )
 
 
@@ -493,6 +640,11 @@ async def previsualizar(
         "sello_y": sello_y,
         "firma_x": firma_x,
         "firma_y": firma_y,
+        **obtener_tamano_pagina_pulgadas(ruta_plantilla),
+        "sello_width_in": DEFAULT_SELLO_WIDTH_IN,
+        "firma_width_in": DEFAULT_FIRMA_WIDTH_IN,
+        "sello_page": 1,
+        "firma_page": 1,
     }
 
     return templates.TemplateResponse(
@@ -514,6 +666,12 @@ async def previsualizar(
             "sello_y": sello_y,
             "firma_x": firma_x,
             "firma_y": firma_y,
+            "page_width_in": PREVIEW_SESSIONS[session_id]["page_width_in"],
+            "page_height_in": PREVIEW_SESSIONS[session_id]["page_height_in"],
+            "sello_width_in": DEFAULT_SELLO_WIDTH_IN,
+            "firma_width_in": DEFAULT_FIRMA_WIDTH_IN,
+            "sello_page": 1,
+            "firma_page": 1,
         },
     )
 
@@ -557,9 +715,33 @@ async def preview_pdf(request: Request, session_id: str, row_id: int):
             sello_y=session.get("sello_y", 0.0),
             firma_x=session.get("firma_x", 0.0),
             firma_y=session.get("firma_y", 0.0),
+            incluir_imagenes_docx=False,
+            sello_width_in=session.get("sello_width_in", DEFAULT_SELLO_WIDTH_IN),
+            firma_width_in=session.get("firma_width_in", DEFAULT_FIRMA_WIDTH_IN),
         )
-        ruta_pdf = convertir_docx_a_pdf(ruta_docx, carpeta_preview)
-    except RuntimeError as exc:
+        ruta_pdf_base = convertir_docx_a_pdf(ruta_docx, carpeta_preview)
+        ruta_pdf = ruta_pdf_base.replace(".pdf", "_overlay.pdf")
+        overlay_imagenes_en_pdf(
+            ruta_pdf_entrada=ruta_pdf_base,
+            ruta_pdf_salida=ruta_pdf,
+            overlays=[
+                {
+                    "path": session.get("sello_path"),
+                    "x_in": session.get("sello_x", 0.0),
+                    "y_in": session.get("sello_y", 0.0),
+                    "width_in": session.get("sello_width_in", DEFAULT_SELLO_WIDTH_IN),
+                    "page": session.get("sello_page", 1),
+                },
+                {
+                    "path": session.get("firma_path"),
+                    "x_in": session.get("firma_x", 0.0),
+                    "y_in": session.get("firma_y", 0.0),
+                    "width_in": session.get("firma_width_in", DEFAULT_FIRMA_WIDTH_IN),
+                    "page": session.get("firma_page", 1),
+                },
+            ],
+        )
+    except (RuntimeError, Exception) as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
     filename = os.path.basename(ruta_pdf)
@@ -591,6 +773,7 @@ def visor_preview(request: Request, session_id: str, row_id: int, user: dict = D
             "user": user,
             "session_id": session_id,
             "row_id": row_id,
+            "plantilla_nombre": session.get("plantilla_nombre"),
             "datos": datos,
             "datos_json": json.dumps(datos),
             "variables": sorted(session["variables"]),
@@ -600,6 +783,12 @@ def visor_preview(request: Request, session_id: str, row_id: int, user: dict = D
             "sello_y": session.get("sello_y", 0.0),
             "firma_x": session.get("firma_x", 0.0),
             "firma_y": session.get("firma_y", 0.0),
+            "page_width_in": session.get("page_width_in", 8.27),
+            "page_height_in": session.get("page_height_in", 11.69),
+            "sello_width_in": session.get("sello_width_in", DEFAULT_SELLO_WIDTH_IN),
+            "firma_width_in": session.get("firma_width_in", DEFAULT_FIRMA_WIDTH_IN),
+            "sello_page": session.get("sello_page", 1),
+            "firma_page": session.get("firma_page", 1),
         },
     )
 
@@ -611,6 +800,10 @@ def ajustar_posicion(
     sello_y: float = Form(0.0),
     firma_x: float = Form(0.0),
     firma_y: float = Form(0.0),
+    sello_width_in: float = Form(DEFAULT_SELLO_WIDTH_IN),
+    firma_width_in: float = Form(DEFAULT_FIRMA_WIDTH_IN),
+    sello_page: int = Form(1),
+    firma_page: int = Form(1),
     user: dict = Depends(require_permission("editar")),
 ):
     session = PREVIEW_SESSIONS.get(session_id)
@@ -621,6 +814,10 @@ def ajustar_posicion(
     session["sello_y"] = sello_y
     session["firma_x"] = firma_x
     session["firma_y"] = firma_y
+    session["sello_width_in"] = max(0.1, sello_width_in)
+    session["firma_width_in"] = max(0.1, firma_width_in)
+    session["sello_page"] = max(1, sello_page)
+    session["firma_page"] = max(1, firma_page)
 
     return {"ok": True, "message": "Posicion actualizada"}
 
@@ -649,6 +846,10 @@ async def generar_final(
     sello_y = float(form.get("sello_y", session.get("sello_y", 0.0)) or 0.0)
     firma_x = float(form.get("firma_x", session.get("firma_x", 0.0)) or 0.0)
     firma_y = float(form.get("firma_y", session.get("firma_y", 0.0)) or 0.0)
+    sello_width_in = float(form.get("sello_width_in", session.get("sello_width_in", DEFAULT_SELLO_WIDTH_IN)) or DEFAULT_SELLO_WIDTH_IN)
+    firma_width_in = float(form.get("firma_width_in", session.get("firma_width_in", DEFAULT_FIRMA_WIDTH_IN)) or DEFAULT_FIRMA_WIDTH_IN)
+    sello_page = int(form.get("sello_page", session.get("sello_page", 1)) or 1)
+    firma_page = int(form.get("firma_page", session.get("firma_page", 1)) or 1)
 
     generados = []
     for id_txt in ids_seleccionados:
@@ -679,9 +880,33 @@ async def generar_final(
                 sello_y=sello_y,
                 firma_x=firma_x,
                 firma_y=firma_y,
+                incluir_imagenes_docx=False,
+                sello_width_in=sello_width_in,
+                firma_width_in=firma_width_in,
             )
-            ruta_pdf = convertir_docx_a_pdf(ruta_docx, os.path.join("output", "certificados"))
-        except RuntimeError as exc:
+            ruta_pdf_base = convertir_docx_a_pdf(ruta_docx, os.path.join("output", "certificados"))
+            ruta_pdf = ruta_pdf_base.replace(".pdf", "_overlay.pdf")
+            overlay_imagenes_en_pdf(
+                ruta_pdf_entrada=ruta_pdf_base,
+                ruta_pdf_salida=ruta_pdf,
+                overlays=[
+                    {
+                        "path": session.get("sello_path"),
+                        "x_in": sello_x,
+                        "y_in": sello_y,
+                        "width_in": sello_width_in,
+                        "page": sello_page,
+                    },
+                    {
+                        "path": session.get("firma_path"),
+                        "x_in": firma_x,
+                        "y_in": firma_y,
+                        "width_in": firma_width_in,
+                        "page": firma_page,
+                    },
+                ],
+            )
+        except (RuntimeError, Exception) as exc:
             raise HTTPException(status_code=500, detail=str(exc))
 
         generados.append(

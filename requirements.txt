@@ -6,3 +6,5 @@ python-multipart
 docxtpl
 python-docx
 jinja2
+pypdf
+reportlab
