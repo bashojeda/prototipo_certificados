@@ -9,7 +9,9 @@
         .toolbar span { font-weight: 600; }
         .main { display: flex; height: calc(100vh - 64px); }
         .left-panel { width: 340px; border-right: 1px solid #ddd; padding: 12px; overflow-y: auto; background: #fff; }
-        .viewer-panel { flex: 1; background: #0f0f0f; display: flex; align-items: center; justify-content: center; position: relative; }
+        .viewer-panel { flex: 1; background: #0f0f0f; display: flex; align-items: center; justify-content: center; position: relative; overflow: auto; min-width: 0; min-height: 0; }
+        #stage { position: relative; box-shadow: 0 0 12px rgba(0,0,0,.5); background: #fff; visibility: hidden; box-sizing: border-box; }
+        #pdf-canvas { display: block; }
         .controls { margin-top: 10px; background-color: #fafafa; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
         .controls label { display: block; margin: 6px 0 2px; font-size: 0.95rem; }
         .controls input, .controls select { width: 100%; padding: 5px 6px; box-sizing: border-box; }
@@ -17,8 +19,6 @@
         button.primary { background: #007acc; color: #fff; }
         button.secondary { background: #e1e1e1; }
         .nav { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
-        #stage { position: relative; box-shadow: 0 0 12px rgba(0,0,0,.5); background: #fff; visibility: hidden; }
-        #pdf-canvas { display: block; }
         #overlay-layer { position: absolute; inset: 0; }
         .overlay-item { position: absolute; border: 2px dashed #1f6feb; cursor: move; user-select: none; touch-action: none; }
         .overlay-item.active { border-color: #e55353; }
@@ -200,11 +200,12 @@
         }
 
         function calcularFitScale(viewportBase) {
-            const panelW = viewerPanel.clientWidth || viewerPanel.getBoundingClientRect().width || window.innerWidth * 0.7;
-            const panelH = viewerPanel.clientHeight || viewerPanel.getBoundingClientRect().height || window.innerHeight * 0.8;
-            const maxW = Math.max(420, panelW * 0.95);
-            const maxH = Math.max(420, panelH * 0.95);
-            return Math.min(0.9, maxW / viewportBase.width, maxH / viewportBase.height);
+            const panelRect = viewerPanel.getBoundingClientRect();
+            const panelW = panelRect.width;
+            const panelH = panelRect.height;
+            const maxW = Math.max(240, panelW * 0.95);
+            const maxH = Math.max(240, panelH * 0.95);
+            return Math.min(maxW / viewportBase.width, maxH / viewportBase.height, 1.0);
         }
 
         function attachDragAndResize(name, el) {
