@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Historial de tickets</title>
+</head>
+<body>
+    <h1>Historial de tickets</h1>
+    <p>Usuario: <strong>{{ user.username }}</strong> (Rol: {{ user.role }})</p>
+    <p><a href="/dashboard">Dashboard</a> | <a href="/logout">Cerrar sesión</a></p>
+
+    {% if tickets %}
+    <table border="1" cellpadding="8" cellspacing="0">
+        <thead>
+            <tr>
+                <th>ID del ticket</th>
+                <th>Fecha</th>
+                <th>Plantilla</th>
+                <th>Constancias</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ticket in tickets %}
+            <tr>
+                <td>{{ ticket.id }}</td>
+                <td>{{ ticket.created_at }}</td>
+                <td>{{ ticket.plantilla_nombre }}</td>
+                <td>{{ ticket.row_count }}</td>
+                <td>
+                    <a href="/tickets/{{ ticket.id }}">Ver</a>
+                    |
+                    <a href="/tickets/{{ ticket.id }}/editar">Editar</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No hay tickets registrados aún.</p>
+    {% endif %}
+</body>
+</html>

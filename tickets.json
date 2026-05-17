@@ -1,0 +1,364 @@
+[
+  {
+    "id": "87508db560f74b5ba99c00b3552d2a78",
+    "created_at": "2026-05-14T05:07:56.086899",
+    "created_by": "creator",
+    "plantilla_nombre": "PlantillaV2.docx",
+    "sello_nombre": "Sello.png",
+    "firma_nombre": "Sello.png",
+    "sello_x": 0.0,
+    "sello_y": 0.0,
+    "firma_x": 0.0,
+    "firma_y": 0.0,
+    "sello_width_in": 2.5,
+    "firma_width_in": 3.0,
+    "sello_page": 1,
+    "firma_page": 1,
+    "page_width_in": 8.5,
+    "page_height_in": 11.0,
+    "variables": [
+      "apellido_materno",
+      "apellido_paterno",
+      "carrera",
+      "fecha",
+      "nombre",
+      "nombre_institucion",
+      "numero_control"
+    ],
+    "rows": [
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230001",
+        "apellido_materno": "Lopez",
+        "carrera": "Ingeniería en Sistemas Computacionales",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Perez",
+        "nombre": "Juan"
+      },
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230002",
+        "apellido_materno": "Ramirez",
+        "carrera": "Ingeniería Industrial",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Gonzalez",
+        "nombre": "Maria"
+      },
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230003",
+        "apellido_materno": "Torres",
+        "carrera": "Ingeniería Mecatrónica",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Hernandez",
+        "nombre": "Carlos"
+      },
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230004",
+        "apellido_materno": "Soto",
+        "carrera": "Ingenieria en Logistica",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Martinez",
+        "nombre": "Ana"
+      },
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230005",
+        "apellido_materno": "Navarro",
+        "carrera": "Ingeniería Civil",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Garcia",
+        "nombre": "Luis"
+      },
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230006",
+        "apellido_materno": "Castro",
+        "carrera": "Contaduría Pública",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Diaz",
+        "nombre": "Sofia"
+      },
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230007",
+        "apellido_materno": "Vega",
+        "carrera": "Ingeniería Electrónica",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Morales",
+        "nombre": "Diego"
+      },
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230008",
+        "apellido_materno": "Mendoza",
+        "carrera": "Contaduría Pública",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Rojas",
+        "nombre": "Valeria"
+      },
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230009",
+        "apellido_materno": "Ortega",
+        "carrera": "Ingeniería en Software",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Silva",
+        "nombre": "Jorge"
+      },
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230010",
+        "apellido_materno": "Luna",
+        "carrera": "Ingenieria en Quimica",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Campos",
+        "nombre": "Fernanda"
+      }
+    ],
+    "generated": [
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 0
+      },
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 1
+      },
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 2
+      },
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 3
+      },
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 4
+      },
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 5
+      },
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 6
+      },
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 7
+      },
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 8
+      },
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 9
+      }
+    ]
+  },
+  {
+    "id": "c656467fd9b549b0bee68c5b528f5bae",
+    "created_at": "2026-05-14T05:10:43.158614",
+    "created_by": "creator",
+    "plantilla_nombre": "PlantillaV2.docx",
+    "sello_nombre": "Sello.png",
+    "firma_nombre": "Firma.png",
+    "sello_x": 0.0,
+    "sello_y": 0.0,
+    "firma_x": 0.0,
+    "firma_y": 0.0,
+    "sello_width_in": 2.5,
+    "firma_width_in": 3.0,
+    "sello_page": 1,
+    "firma_page": 1,
+    "page_width_in": 8.5,
+    "page_height_in": 11.0,
+    "variables": [
+      "apellido_materno",
+      "apellido_paterno",
+      "carrera",
+      "fecha",
+      "nombre",
+      "nombre_institucion",
+      "numero_control"
+    ],
+    "rows": [
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230001",
+        "apellido_materno": "Lopez",
+        "carrera": "Ingeniería en Sistemas Computacionales",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Perez",
+        "nombre": "Juan"
+      },
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230002",
+        "apellido_materno": "Ramirez",
+        "carrera": "Ingeniería Industrial",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Gonzalez",
+        "nombre": "Maria"
+      },
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230003",
+        "apellido_materno": "Torres",
+        "carrera": "Ingeniería Mecatrónica",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Hernandez",
+        "nombre": "Carlos"
+      },
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230004",
+        "apellido_materno": "Soto",
+        "carrera": "Ingenieria en Logistica",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Martinez",
+        "nombre": "Ana"
+      },
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230005",
+        "apellido_materno": "Navarro",
+        "carrera": "Ingeniería Civil",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Garcia",
+        "nombre": "Luis"
+      },
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230006",
+        "apellido_materno": "Castro",
+        "carrera": "Contaduría Pública",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Diaz",
+        "nombre": "Sofia"
+      },
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230007",
+        "apellido_materno": "Vega",
+        "carrera": "Ingeniería Electrónica",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Morales",
+        "nombre": "Diego"
+      },
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230008",
+        "apellido_materno": "Mendoza",
+        "carrera": "Contaduría Pública",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Rojas",
+        "nombre": "Valeria"
+      },
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230009",
+        "apellido_materno": "Ortega",
+        "carrera": "Ingeniería en Software",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Silva",
+        "nombre": "Jorge"
+      },
+      {
+        "fecha": "2026-03-09 00:00:00",
+        "numero_control": "20230010",
+        "apellido_materno": "Luna",
+        "carrera": "Ingenieria en Quimica",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_paterno": "Campos",
+        "nombre": "Fernanda"
+      }
+    ],
+    "generated": [
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 0
+      },
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 1
+      },
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 2
+      },
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 3
+      },
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 4
+      },
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 5
+      },
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 6
+      },
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 7
+      },
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 8
+      },
+      {
+        "nombre": "2026-03-09 00_00_00",
+        "pdf": "/output/certificados/2026-03-09 00_00_00_overlay.pdf",
+        "docx": "/output/certificados/2026-03-09 00_00_00.docx",
+        "row_index": 9
+      }
+    ]
+  }
+]

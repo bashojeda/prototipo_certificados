@@ -18,27 +18,28 @@
         <label for="plantilla">Plantilla DOCX:</label>
         <input type="file" id="plantilla" name="plantilla" accept=".docx" required>
 
-        <label for="sello">Sello oficial (PNG/JPEG) - opcional:</label>
-        <input type="file" id="sello" name="sello" accept="image/png,image/jpeg">
+        <label for="imagenes">Imágenes para superponer (sellos / firmas / logos) - opcional:</label>
+        <input type="file" id="imagenes" name="imagenes" accept="image/png,image/jpeg" multiple>
 
-        <label for="firma">Firma digitalizada (PNG/JPEG) - opcional:</label>
-        <input type="file" id="firma" name="firma" accept="image/png,image/jpeg">
-
-        <h3>Posicionamiento de sello/firma</h3>
-        <label for="sello_x">Sello X (inches):</label>
-        <input type="number" step="0.1" min="0" id="sello_x" name="sello_x" value="0.0">
-
-        <label for="sello_y">Sello Y (inches):</label>
-        <input type="number" step="0.1" min="0" id="sello_y" name="sello_y" value="0.0">
-
-        <label for="firma_x">Firma X (inches):</label>
-        <input type="number" step="0.1" min="0" id="firma_x" name="firma_x" value="0.0">
-
-        <label for="firma_y">Firma Y (inches):</label>
-        <input type="number" step="0.1" min="0" id="firma_y" name="firma_y" value="0.0">
+        <p>Si necesitas varias imágenes de firma o sello, selecciónalas todas aquí. Luego podrás moverlas y cambiar su tamaño en el editor.</p>
 
         <button type="submit">Previsualizar certificados</button>
     </form>
+
+    {% if user.role == 'creator' and ticket_history %}
+    <h2>Historial de tickets</h2>
+    <p><a href="/tickets">Ver todos los tickets</a></p>
+    <ul>
+        {% for ticket in ticket_history %}
+        <li>
+            <strong>ID:</strong> {{ ticket.id }}
+            | <strong>Fecha:</strong> {{ ticket.created_at }}
+            | <strong>Constancias:</strong> {{ ticket.row_count }}
+            | <a href="/tickets/{{ ticket.id }}">Ver</a>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
     {% else %}
     <p>No tienes permiso para crear o editar certificados, solo puedes visualizarlos.</p>
     {% endif %}

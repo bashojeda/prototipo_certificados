@@ -39,20 +39,26 @@
     <div>
         <strong>Archivos cargados:</strong>
         <ul>
-            <li>Plantilla: <a href="/uploads/{{ plantilla_nombre }}" target="_blank">{{ plantilla_nombre }}</a></li>
-            {% if sello_archivo %}
-            <li>Sello: <a href="/uploads/{{ sello_archivo }}" target="_blank">{{ sello_nombre or sello_archivo }}</a></li>
-            {% endif %}
-            {% if firma_archivo %}
-            <li>Firma: <a href="/uploads/{{ firma_archivo }}" target="_blank">{{ firma_nombre or firma_archivo }}</a></li>
-            {% endif %}
+            <li>Plantilla: <a href="{% if ticket_id %}/ticket-assets/{{ ticket_id }}/{{ plantilla_nombre }}{% else %}/uploads/{{ plantilla_nombre }}{% endif %}" target="_blank">{{ plantilla_nombre }}</a></li>
+            {% for imagen in imagenes %}
+            <li>Imagen: <a href="{% if ticket_id %}/ticket-assets/{{ ticket_id }}/{{ imagen.filename }}{% else %}/uploads/{{ imagen.filename }}{% endif %}" target="_blank">{{ imagen.original_name or imagen.filename }}</a></li>
+            {% endfor %}
         </ul>
+
+        <div style="margin-top: 16px; padding: 12px; border: 1px solid #ddd; background: #f8f8f8; max-width: 560px;">
+            <h3>Agregar más imágenes</h3>
+            <form id="upload-more-images-form" enctype="multipart/form-data">
+                <input type="file" id="new-images" name="imagenes" accept="image/*" multiple>
+                <button type="button" id="upload-more-btn">Subir imágenes</button>
+            </form>
+            <div id="upload-more-status" style="margin-top:8px;font-size:.95rem;color:#333;"></div>
+        </div>
     </div>
 
     <div>
         <h3>Posicionamiento de imágenes</h3>
         <p>Las coordenadas están en pulgadas (x=izquierda, y=arriba / espaciado antes).</p>
-        <p>Sello X: {{ sello_x }} | Sello Y: {{ sello_y }} | Firma X: {{ firma_x }} | Firma Y: {{ firma_y }}</p>
+        <p>Puedes mover y cambiar el tamaño de cada imagen en el editor.</p>
     </div>
 
     <div style="margin-bottom: 12px;">
@@ -61,6 +67,17 @@
 
     <form action="/generar-final" method="post" id="form-final">
         <input type="hidden" name="session_id" value="{{ session_id }}">
+        {% if ticket_id %}
+        <input type="hidden" name="ticket_id" value="{{ ticket_id }}">
+        {% endif %}
+
+        {% if editing_ticket %}
+            <div style="margin:16px 0; padding:12px; border:1px solid #888; background:#f8f8f8;">
+                <strong>Estás editando un ticket existente:</strong>
+                <div>ID del ticket: {{ ticket_id }}</div>
+                <div>Al guardar, se actualizará el ticket con las nuevas constancias generadas.</div>
+            </div>
+        {% endif %}
 
         <label>
             <input type="checkbox" id="seleccionar-todos" checked>
@@ -135,6 +152,38 @@
                     const marcados = Array.from(selectors).filter((x) => x.checked).length;
                     seleccionarTodos.checked = marcados === total;
                 });
+            });
+
+            document.getElementById('upload-more-btn').addEventListener('click', async function () {
+                const fileInput = document.getElementById('new-images');
+                const status = document.getElementById('upload-more-status');
+                if (!fileInput.files.length) {
+                    status.textContent = 'Selecciona al menos una imagen.';
+                    return;
+                }
+                const formData = new FormData();
+                formData.append('session_id', '{{ session_id }}');
+                for (const file of fileInput.files) {
+                    formData.append('imagenes', file);
+                }
+                status.textContent = 'Subiendo imágenes...';
+                try {
+                    const res = await fetch('/session/subir-imagenes', {
+                        method: 'POST',
+                        body: formData,
+                    });
+                    const data = await res.json();
+                    if (!res.ok) {
+                        status.textContent = data.message || 'Error al subir imágenes.';
+                        return;
+                    }
+                    status.textContent = 'Imágenes agregadas correctamente. Recarga para ver los cambios.';
+                    fileInput.value = '';
+                    setTimeout(() => location.reload(), 800);
+                } catch (err) {
+                    console.error(err);
+                    status.textContent = 'No se pudo subir las imágenes. Intenta nuevamente.';
+                }
             });
 
             window.abrirPreview = function(idx) {

@@ -1,5 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Cookie, status
-from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.requests import Request
@@ -20,6 +20,7 @@ import json
 import hashlib
 import logging
 import secrets
+import datetime
 from io import BytesIO
 from typing import Dict, Any, List, Set, Optional
 from pypdf import PdfReader, PdfWriter
@@ -32,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 USERS_FILE = "users.json"
+TICKETS_FILE = "tickets.json"
 SESSION_COOKIE_NAME = "session_token"
 SESSION_STORE: Dict[str, dict] = {}
 
@@ -51,6 +53,7 @@ DEFAULT_USERS = [
 os.makedirs("static", exist_ok=True)
 os.makedirs("output", exist_ok=True)
 os.makedirs("output/certificados", exist_ok=True)
+os.makedirs("output/tickets", exist_ok=True)
 os.makedirs("output/previews", exist_ok=True)
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("templates", exist_ok=True)
@@ -58,6 +61,7 @@ os.makedirs("templates", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/output", StaticFiles(directory="output"), name="output")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/ticket-assets", StaticFiles(directory="output/tickets"), name="ticket-assets")
 
 # Inicializar templates aquí, antes de usar en las rutas
 templates = Jinja2Templates(directory="templates")
@@ -88,6 +92,29 @@ def get_user(username: str):
     for u in load_users():
         if u["username"] == username:
             return u
+    return None
+
+
+def load_tickets() -> List[Dict[str, Any]]:
+    if not os.path.exists(TICKETS_FILE):
+        with open(TICKETS_FILE, "w", encoding="utf-8") as f:
+            json.dump([], f, indent=2, ensure_ascii=False)
+        return []
+
+    with open(TICKETS_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_tickets(tickets: List[Dict[str, Any]]) -> None:
+    with open(TICKETS_FILE, "w", encoding="utf-8") as f:
+        json.dump(tickets, f, indent=2, ensure_ascii=False)
+
+
+def get_ticket(ticket_id: str) -> Optional[Dict[str, Any]]:
+    tickets = load_tickets()
+    for ticket in tickets:
+        if ticket.get("id") == ticket_id:
+            return ticket
     return None
 
 
@@ -189,6 +216,19 @@ def dashboard(request: Request, user: dict = Depends(get_current_user)):
         logger.info(f"Dashboard access for user: {user['username']}")
         can_preview = "editar" in PERMISSIONS.get(user.get("role"), set()) or "crear" in PERMISSIONS.get(user.get("role"), set())
         can_generate = "crear" in PERMISSIONS.get(user.get("role"), set())
+        ticket_history = []
+        if user.get("role") == "creator":
+            tickets = load_tickets()
+            ticket_history = [
+                {
+                    "id": t.get("id"),
+                    "created_at": t.get("created_at"),
+                    "row_count": len(t.get("rows", [])),
+                    "plantilla_nombre": t.get("plantilla_nombre"),
+                }
+                for t in tickets
+                if t.get("created_by") == user.get("username")
+            ]
         return templates.TemplateResponse(
             request,
             "formulario.html",
@@ -198,12 +238,169 @@ def dashboard(request: Request, user: dict = Depends(get_current_user)):
                 "can_preview": can_preview,
                 "can_generate": can_generate,
                 "message": "Bienvenido",
+                "ticket_history": ticket_history,
             },
         )
     except Exception as e:
         logger.error(f"Error in dashboard for user {user.get('username', 'unknown')}: {e}")
         # En caso de error, redirigir al login
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+
+def create_ticket_preview_session(ticket: Dict[str, Any]) -> str:
+    session_id = uuid.uuid4().hex
+    ticket_folder = os.path.join("output", "tickets", ticket["id"])
+
+    imagenes = []
+    if ticket.get("imagenes"):
+        for item in ticket.get("imagenes", []):
+            imagenes.append(
+                {
+                    "filename": item.get("filename"),
+                    "original_name": item.get("original_name", item.get("filename")),
+                    "path": os.path.join(ticket_folder, item.get("filename")),
+                    "x": item.get("x", 0.0),
+                    "y": item.get("y", 0.0),
+                    "width": item.get("width", DEFAULT_SELLO_WIDTH_IN),
+                    "page": item.get("page", 1),
+                }
+            )
+    else:
+        if ticket.get("sello_nombre"):
+            imagenes.append(
+                {
+                    "filename": ticket.get("sello_nombre"),
+                    "original_name": ticket.get("sello_nombre"),
+                    "path": os.path.join(ticket_folder, ticket.get("sello_nombre")),
+                    "x": ticket.get("sello_x", 0.0),
+                    "y": ticket.get("sello_y", 0.0),
+                    "width": ticket.get("sello_width_in", DEFAULT_SELLO_WIDTH_IN),
+                    "page": ticket.get("sello_page", 1),
+                }
+            )
+        if ticket.get("firma_nombre"):
+            imagenes.append(
+                {
+                    "filename": ticket.get("firma_nombre"),
+                    "original_name": ticket.get("firma_nombre"),
+                    "path": os.path.join(ticket_folder, ticket.get("firma_nombre")),
+                    "x": ticket.get("firma_x", 0.0),
+                    "y": ticket.get("firma_y", 0.0),
+                    "width": ticket.get("firma_width_in", DEFAULT_FIRMA_WIDTH_IN),
+                    "page": ticket.get("firma_page", 1),
+                }
+            )
+
+    PREVIEW_SESSIONS[session_id] = {
+        "ticket_id": ticket["id"],
+        "plantilla_path": os.path.join(ticket_folder, ticket["plantilla_nombre"]),
+        "plantilla_nombre": ticket["plantilla_nombre"],
+        "rows": ticket.get("rows", []),
+        "variables": ticket.get("variables", []),
+        "imagenes": imagenes,
+        "page_width_in": ticket.get("page_width_in", 8.27),
+        "page_height_in": ticket.get("page_height_in", 11.69),
+    }
+    return session_id
+
+
+def save_ticket_assets(session: Dict[str, Any], ticket_id: str) -> str:
+    ticket_folder = os.path.join("output", "tickets", ticket_id)
+    os.makedirs(ticket_folder, exist_ok=True)
+
+    plantilla_destino = os.path.join(ticket_folder, session.get("plantilla_nombre"))
+    if session.get("plantilla_path") and os.path.exists(session.get("plantilla_path")):
+        shutil.copy2(session.get("plantilla_path"), plantilla_destino)
+
+    for imagen in session.get("imagenes", []):
+        if imagen.get("path") and os.path.exists(imagen.get("path")):
+            destino = os.path.join(ticket_folder, imagen.get("filename"))
+            shutil.copy2(imagen.get("path"), destino)
+
+    return ticket_folder
+
+
+@app.get("/tickets", response_class=HTMLResponse)
+def listar_tickets(request: Request, user: dict = Depends(require_permission("crear"))):
+    tickets = [
+        t for t in load_tickets() if t.get("created_by") == user.get("username")
+    ]
+    tickets.sort(key=lambda t: t.get("created_at", ""), reverse=True)
+    return templates.TemplateResponse(
+        request,
+        "tickets.html",
+        {
+            "request": request,
+            "user": user,
+            "tickets": tickets,
+        },
+    )
+
+
+@app.get("/tickets/{ticket_id}", response_class=HTMLResponse)
+def detalle_ticket(ticket_id: str, request: Request, user: dict = Depends(require_permission("crear"))):
+    ticket = get_ticket(ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    if ticket.get("created_by") != user.get("username"):
+        raise HTTPException(status_code=403, detail="No tienes permiso para ver este ticket")
+
+    return templates.TemplateResponse(
+        request,
+        "ticket_detalle.html",
+        {
+            "request": request,
+            "user": user,
+            "ticket": ticket,
+        },
+    )
+
+
+@app.get("/tickets/{ticket_id}/editar", response_class=HTMLResponse)
+def editar_ticket(ticket_id: str, request: Request, user: dict = Depends(require_permission("crear"))):
+    ticket = get_ticket(ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    if ticket.get("created_by") != user.get("username"):
+        raise HTTPException(status_code=403, detail="No tienes permiso para editar este ticket")
+
+    session_id = create_ticket_preview_session(ticket)
+    session = PREVIEW_SESSIONS[session_id]
+
+    return templates.TemplateResponse(
+        request,
+        "previsualizacion.html",
+        {
+            "request": request,
+            "user": user,
+            "session_id": session_id,
+            "rows": list(enumerate(session["rows"])),
+            "variables": sorted(session["variables"]),
+            "variables_json": json.dumps(sorted(session["variables"])),
+            "plantilla_nombre": session.get("plantilla_nombre"),
+            "imagenes": session.get("imagenes", []),
+            "imagenes_json": json.dumps(session.get("imagenes", [])),
+            "page_width_in": session.get("page_width_in", 8.27),
+            "page_height_in": session.get("page_height_in", 11.69),
+            "ticket_id": ticket_id,
+            "editing_ticket": True,
+        },
+    )
+
+
+@app.get("/tickets/{ticket_id}/editar/{row_id}")
+def editar_ticket_row(ticket_id: str, row_id: int, user: dict = Depends(require_permission("crear"))):
+    ticket = get_ticket(ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    if ticket.get("created_by") != user.get("username"):
+        raise HTTPException(status_code=403, detail="No tienes permiso para editar este ticket")
+
+    if row_id < 0 or row_id >= len(ticket.get("rows", [])):
+        raise HTTPException(status_code=404, detail="Fila no encontrada")
+
+    session_id = create_ticket_preview_session(ticket)
+    return RedirectResponse(url=f"/visor-preview/{session_id}/{row_id}")
 
 
 @app.get("/certificados", response_class=HTMLResponse)
@@ -575,8 +772,7 @@ async def previsualizar(
     request: Request,
     file: UploadFile = File(...),
     plantilla: UploadFile = File(...),
-    sello: UploadFile = File(None),
-    firma: UploadFile = File(None),
+    imagenes: List[UploadFile] = File(None),
     sello_x: float = Form(0.0),
     sello_y: float = Form(0.0),
     firma_x: float = Form(0.0),
@@ -605,46 +801,38 @@ async def previsualizar(
     if not registros:
         raise HTTPException(status_code=400, detail="No hay registros validos para previsualizar")
 
-    sello_path = None
-    firma_path = None
-
-    if sello is not None and sello.filename:
-        sello_id = f"{session_id}_sello_{os.path.basename(sello.filename)}"
-        sello_path = os.path.join("uploads", sello_id)
-        with open(sello_path, "wb") as f:
-            await sello.seek(0)
-            shutil.copyfileobj(sello.file, f)
-
-    if firma is not None and firma.filename:
-        firma_id = f"{session_id}_firma_{os.path.basename(firma.filename)}"
-        firma_path = os.path.join("uploads", firma_id)
-        with open(firma_path, "wb") as f:
-            await firma.seek(0)
-            shutil.copyfileobj(firma.file, f)
-
-    sello_archivo = os.path.basename(sello_path) if sello_path else None
-    firma_archivo = os.path.basename(firma_path) if firma_path else None
+    imagenes_cargadas = []
+    if imagenes:
+        for idx_img, imagen in enumerate(imagenes):
+            if imagen and imagen.filename:
+                imagen_id = f"{session_id}_img_{idx_img}_{os.path.basename(imagen.filename)}"
+                imagen_path = os.path.join("uploads", imagen_id)
+                with open(imagen_path, "wb") as f:
+                    await imagen.seek(0)
+                    shutil.copyfileobj(imagen.file, f)
+                imagenes_cargadas.append(
+                    {
+                        "filename": os.path.basename(imagen_id),
+                        "original_name": os.path.basename(imagen.filename),
+                        "path": imagen_path,
+                        "x": sello_x,
+                        "y": sello_y,
+                        "width": DEFAULT_SELLO_WIDTH_IN,
+                        "page": 1,
+                    }
+                )
 
     PREVIEW_SESSIONS[session_id] = {
         "plantilla_path": ruta_plantilla,
         "plantilla_nombre": os.path.basename(plantilla.filename),
         "rows": registros,
         "variables": variables,
-        "sello_path": sello_path,
-        "firma_path": firma_path,
-        "sello_nombre": os.path.basename(sello.filename) if sello is not None and sello.filename else None,
-        "firma_nombre": os.path.basename(firma.filename) if firma is not None and firma.filename else None,
-        "sello_archivo": sello_archivo,
-        "firma_archivo": firma_archivo,
+        "imagenes": imagenes_cargadas,
         "sello_x": sello_x,
         "sello_y": sello_y,
         "firma_x": firma_x,
         "firma_y": firma_y,
         **obtener_tamano_pagina_pulgadas(ruta_plantilla),
-        "sello_width_in": DEFAULT_SELLO_WIDTH_IN,
-        "firma_width_in": DEFAULT_FIRMA_WIDTH_IN,
-        "sello_page": 1,
-        "firma_page": 1,
     }
 
     return templates.TemplateResponse(
@@ -658,22 +846,75 @@ async def previsualizar(
             "variables": sorted(variables),
             "variables_json": json.dumps(sorted(variables)),
             "plantilla_nombre": os.path.basename(plantilla.filename),
-            "sello_nombre": os.path.basename(sello.filename) if sello is not None and sello.filename else None,
-            "firma_nombre": os.path.basename(firma.filename) if firma is not None and firma.filename else None,
-            "sello_archivo": sello_archivo,
-            "firma_archivo": firma_archivo,
-            "sello_x": sello_x,
-            "sello_y": sello_y,
-            "firma_x": firma_x,
-            "firma_y": firma_y,
+            "imagenes": imagenes_cargadas,
+            "imagenes_json": json.dumps(imagenes_cargadas),
+            "ticket_id": None,
             "page_width_in": PREVIEW_SESSIONS[session_id]["page_width_in"],
             "page_height_in": PREVIEW_SESSIONS[session_id]["page_height_in"],
-            "sello_width_in": DEFAULT_SELLO_WIDTH_IN,
-            "firma_width_in": DEFAULT_FIRMA_WIDTH_IN,
-            "sello_page": 1,
-            "firma_page": 1,
         },
     )
+
+
+@app.post("/session/subir-imagenes")
+async def subir_imagenes_sesion(
+    request: Request,
+    session_id: str = Form(...),
+    imagenes: List[UploadFile] = File(None),
+    user: dict = Depends(require_permission("editar")),
+):
+    session = PREVIEW_SESSIONS.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Sesion de previsualizacion no encontrada")
+
+    if not imagenes:
+        return JSONResponse({"ok": False, "message": "Selecciona una o más imágenes para subir."}, status_code=400)
+
+    existing_count = len(session.get("imagenes", []))
+    uploaded = []
+    for idx, imagen in enumerate(imagenes):
+        if imagen and imagen.filename:
+            imagen_id = f"{session_id}_img_{existing_count + idx}_{os.path.basename(imagen.filename)}"
+            imagen_path = os.path.join("uploads", imagen_id)
+            with open(imagen_path, "wb") as f:
+                await imagen.seek(0)
+                shutil.copyfileobj(imagen.file, f)
+            new_item = {
+                "filename": os.path.basename(imagen_id),
+                "original_name": os.path.basename(imagen.filename),
+                "path": imagen_path,
+                "x": 0.0,
+                "y": 0.0,
+                "width": DEFAULT_SELLO_WIDTH_IN,
+                "page": 1,
+            }
+            session.setdefault("imagenes", []).append(new_item)
+            uploaded.append(new_item)
+
+    if not uploaded:
+        return JSONResponse({"ok": False, "message": "No se subieron imágenes válidas."}, status_code=400)
+
+    image_response = []
+    ticket_asset_dir = None
+    if session.get("ticket_id"):
+        ticket_asset_dir = os.path.abspath(os.path.join("output", "tickets", session["ticket_id"]))
+
+    for item in session.get("imagenes", []):
+        item_path = os.path.abspath(item.get("path", "")) if item.get("path") else ""
+        if ticket_asset_dir and item_path.startswith(ticket_asset_dir):
+            src = f"/ticket-assets/{session['ticket_id']}/{item.get('filename')}"
+        else:
+            src = f"/uploads/{item.get('filename')}"
+        image_response.append({
+            "filename": item.get("filename"),
+            "original_name": item.get("original_name"),
+            "x": item.get("x", 0.0),
+            "y": item.get("y", 0.0),
+            "width": item.get("width", DEFAULT_SELLO_WIDTH_IN),
+            "page": item.get("page", 1),
+            "src": src,
+        })
+
+    return JSONResponse({"ok": True, "message": "Imágenes agregadas.", "imagenes": image_response})
 
 
 @app.get("/preview/{session_id}/{row_id}")
@@ -721,25 +962,21 @@ async def preview_pdf(request: Request, session_id: str, row_id: int):
         )
         ruta_pdf_base = convertir_docx_a_pdf(ruta_docx, carpeta_preview)
         ruta_pdf = ruta_pdf_base.replace(".pdf", "_overlay.pdf")
+        overlays = []
+        for imagen in session.get("imagenes", []):
+            overlays.append(
+                {
+                    "path": imagen.get("path"),
+                    "x_in": imagen.get("x", 0.0),
+                    "y_in": imagen.get("y", 0.0),
+                    "width_in": imagen.get("width", DEFAULT_SELLO_WIDTH_IN),
+                    "page": imagen.get("page", 1),
+                }
+            )
         overlay_imagenes_en_pdf(
             ruta_pdf_entrada=ruta_pdf_base,
             ruta_pdf_salida=ruta_pdf,
-            overlays=[
-                {
-                    "path": session.get("sello_path"),
-                    "x_in": session.get("sello_x", 0.0),
-                    "y_in": session.get("sello_y", 0.0),
-                    "width_in": session.get("sello_width_in", DEFAULT_SELLO_WIDTH_IN),
-                    "page": session.get("sello_page", 1),
-                },
-                {
-                    "path": session.get("firma_path"),
-                    "x_in": session.get("firma_x", 0.0),
-                    "y_in": session.get("firma_y", 0.0),
-                    "width_in": session.get("firma_width_in", DEFAULT_FIRMA_WIDTH_IN),
-                    "page": session.get("firma_page", 1),
-                },
-            ],
+            overlays=overlays,
         )
     except (RuntimeError, Exception) as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -765,6 +1002,20 @@ def visor_preview(request: Request, session_id: str, row_id: int, user: dict = D
     for var in session["variables"]:
         datos[var] = query_params.get(var, session["rows"][row_id].get(var, ""))
     
+    imagenes = []
+    for item in session.get("imagenes", []):
+        imagenes.append(
+            {
+                "filename": item.get("filename"),
+                "original_name": item.get("original_name", item.get("filename")),
+                "src": f"/ticket-assets/{session['ticket_id']}/{item['filename']}" if session.get("ticket_id") else f"/uploads/{item.get('filename')}",
+                "x": item.get("x", 0.0),
+                "y": item.get("y", 0.0),
+                "width": item.get("width", DEFAULT_SELLO_WIDTH_IN),
+                "page": item.get("page", 1),
+            }
+        )
+
     return templates.TemplateResponse(
         request,
         "visor_preview.html",
@@ -777,18 +1028,11 @@ def visor_preview(request: Request, session_id: str, row_id: int, user: dict = D
             "datos": datos,
             "datos_json": json.dumps(datos),
             "variables": sorted(session["variables"]),
-            "sello_archivo": session.get("sello_archivo"),
-            "firma_archivo": session.get("firma_archivo"),
-            "sello_x": session.get("sello_x", 0.0),
-            "sello_y": session.get("sello_y", 0.0),
-            "firma_x": session.get("firma_x", 0.0),
-            "firma_y": session.get("firma_y", 0.0),
+            "imagenes": imagenes,
+            "imagenes_json": json.dumps(imagenes),
+            "ticket_id": session.get("ticket_id"),
             "page_width_in": session.get("page_width_in", 8.27),
             "page_height_in": session.get("page_height_in", 11.69),
-            "sello_width_in": session.get("sello_width_in", DEFAULT_SELLO_WIDTH_IN),
-            "firma_width_in": session.get("firma_width_in", DEFAULT_FIRMA_WIDTH_IN),
-            "sello_page": session.get("sello_page", 1),
-            "firma_page": session.get("firma_page", 1),
         },
     )
 
@@ -796,30 +1040,38 @@ def visor_preview(request: Request, session_id: str, row_id: int, user: dict = D
 @app.post("/session/ajustar-posicion")
 def ajustar_posicion(
     session_id: str = Form(...),
-    sello_x: float = Form(0.0),
-    sello_y: float = Form(0.0),
-    firma_x: float = Form(0.0),
-    firma_y: float = Form(0.0),
-    sello_width_in: float = Form(DEFAULT_SELLO_WIDTH_IN),
-    firma_width_in: float = Form(DEFAULT_FIRMA_WIDTH_IN),
-    sello_page: int = Form(1),
-    firma_page: int = Form(1),
+    imagenes_json: str = Form("[]"),
     user: dict = Depends(require_permission("editar")),
 ):
     session = PREVIEW_SESSIONS.get(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Sesion no encontrada")
 
-    session["sello_x"] = sello_x
-    session["sello_y"] = sello_y
-    session["firma_x"] = firma_x
-    session["firma_y"] = firma_y
-    session["sello_width_in"] = max(0.1, sello_width_in)
-    session["firma_width_in"] = max(0.1, firma_width_in)
-    session["sello_page"] = max(1, sello_page)
-    session["firma_page"] = max(1, firma_page)
+    try:
+        imagenes = json.loads(imagenes_json)
+        if isinstance(imagenes, list):
+            actuales = {img.get("filename"): img for img in session.get("imagenes", [])}
+            session["imagenes"] = []
+            for item in imagenes:
+                if not item.get("filename"):
+                    continue
+                filename = item.get("filename")
+                existing = actuales.get(filename, {})
+                session["imagenes"].append(
+                    {
+                        "filename": filename,
+                        "original_name": item.get("original_name") or existing.get("original_name"),
+                        "path": existing.get("path"),
+                        "x": float(item.get("x", 0.0)),
+                        "y": float(item.get("y", 0.0)),
+                        "page": int(item.get("page", 1)),
+                        "width": float(item.get("width", DEFAULT_SELLO_WIDTH_IN)),
+                    }
+                )
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Formato JSON invalido para las imagenes")
 
-    return {"ok": True, "message": "Posicion actualizada"}
+    return {"ok": True, "message": "Posiciones actualizadas"}
 
 
 @app.post("/generar-final", response_class=HTMLResponse)
@@ -834,6 +1086,7 @@ async def generar_final(
         raise HTTPException(status_code=404, detail="Sesion de previsualizacion no encontrada")
 
     form = await request.form()
+    ticket_id = form.get("ticket_id")
 
     ids_seleccionados = selected_ids
     if isinstance(ids_seleccionados, str):
@@ -874,37 +1127,33 @@ async def generar_final(
                 datos=datos,
                 ruta_docx=ruta_docx,
                 no_valido=False,
-                sello_path=session.get("sello_path"),
-                firma_path=session.get("firma_path"),
-                sello_x=sello_x,
-                sello_y=sello_y,
-                firma_x=firma_x,
-                firma_y=firma_y,
+                sello_path=None,
+                firma_path=None,
+                sello_x=0.0,
+                sello_y=0.0,
+                firma_x=0.0,
+                firma_y=0.0,
                 incluir_imagenes_docx=False,
-                sello_width_in=sello_width_in,
-                firma_width_in=firma_width_in,
+                sello_width_in=DEFAULT_SELLO_WIDTH_IN,
+                firma_width_in=DEFAULT_FIRMA_WIDTH_IN,
             )
             ruta_pdf_base = convertir_docx_a_pdf(ruta_docx, os.path.join("output", "certificados"))
             ruta_pdf = ruta_pdf_base.replace(".pdf", "_overlay.pdf")
+            overlays = []
+            for imagen in session.get("imagenes", []):
+                overlays.append(
+                    {
+                        "path": imagen.get("path"),
+                        "x_in": imagen.get("x", 0.0),
+                        "y_in": imagen.get("y", 0.0),
+                        "width_in": imagen.get("width", DEFAULT_SELLO_WIDTH_IN),
+                        "page": imagen.get("page", 1),
+                    }
+                )
             overlay_imagenes_en_pdf(
                 ruta_pdf_entrada=ruta_pdf_base,
                 ruta_pdf_salida=ruta_pdf,
-                overlays=[
-                    {
-                        "path": session.get("sello_path"),
-                        "x_in": sello_x,
-                        "y_in": sello_y,
-                        "width_in": sello_width_in,
-                        "page": sello_page,
-                    },
-                    {
-                        "path": session.get("firma_path"),
-                        "x_in": firma_x,
-                        "y_in": firma_y,
-                        "width_in": firma_width_in,
-                        "page": firma_page,
-                    },
-                ],
+                overlays=overlays,
             )
         except (RuntimeError, Exception) as exc:
             raise HTTPException(status_code=500, detail=str(exc))
@@ -914,8 +1163,54 @@ async def generar_final(
                 "nombre": nombre_archivo,
                 "pdf": "/output/certificados/" + os.path.basename(ruta_pdf),
                 "docx": "/output/certificados/" + os.path.basename(ruta_docx),
+                "row_index": idx,
             }
         )
+
+    if ticket_id:
+        ticket = get_ticket(ticket_id)
+        if not ticket:
+            raise HTTPException(status_code=404, detail="Ticket no encontrado")
+        if ticket.get("created_by") != user.get("username"):
+            raise HTTPException(status_code=403, detail="No tienes permiso para editar este ticket")
+        ticket.setdefault("generated", [])
+        ticket["generated"].extend(generados)
+        ticket["imagenes"] = session.get("imagenes", ticket.get("imagenes", []))
+        ticket["updated_at"] = datetime.datetime.utcnow().isoformat()
+        tickets = load_tickets()
+        for idx_ticket, stored_ticket in enumerate(tickets):
+            if stored_ticket.get("id") == ticket_id:
+                tickets[idx_ticket] = ticket
+                break
+        save_tickets(tickets)
+    else:
+        new_ticket_id = uuid.uuid4().hex
+        ticket_folder = save_ticket_assets(session, new_ticket_id)
+        ticket_entry = {
+            "id": new_ticket_id,
+            "created_at": datetime.datetime.utcnow().isoformat(),
+            "created_by": user.get("username"),
+            "plantilla_nombre": session.get("plantilla_nombre"),
+            "imagenes": [
+                {
+                    "filename": imagen.get("filename"),
+                    "original_name": imagen.get("original_name"),
+                    "x": imagen.get("x", 0.0),
+                    "y": imagen.get("y", 0.0),
+                    "width": imagen.get("width", DEFAULT_SELLO_WIDTH_IN),
+                    "page": imagen.get("page", 1),
+                }
+                for imagen in session.get("imagenes", [])
+            ],
+            "page_width_in": session.get("page_width_in", 8.27),
+            "page_height_in": session.get("page_height_in", 11.69),
+            "variables": sorted(session.get("variables", [])),
+            "rows": session.get("rows", []),
+            "generated": generados,
+        }
+        tickets = load_tickets()
+        tickets.append(ticket_entry)
+        save_tickets(tickets)
 
     return templates.TemplateResponse(
         request,
