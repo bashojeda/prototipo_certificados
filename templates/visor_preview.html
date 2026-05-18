@@ -121,13 +121,13 @@
 </head>
 <body>
     <div class="toolbar">
-        <span>Editor WYSIWYG multipagina</span>
+        <span id="title-mode">Editor WYSIWYG multipagina</span>
         <a href="/dashboard">Volver</a>
         <a href="/certificados">Certificados existentes</a>
     </div>
 
-    <div class="main">
-        <div class="left-panel">
+    <div class="main" id="main-container">
+        <div class="left-panel" id="left-panel">
             <h3>Archivos cargados</h3>
             <ul>
                 <li>Plantilla: <a href="{% if ticket_id %}/ticket-assets/{{ ticket_id }}/{{ plantilla_nombre }}{% else %}/uploads/{{ plantilla_nombre }}{% endif %}" target="_blank">{{ plantilla_nombre }}</a></li>
@@ -177,7 +177,7 @@
             </div>
         </div>
 
-        <div class="viewer-panel">
+        <div class="viewer-panel" id="viewer-panel">
             <div id="stage">
                 <canvas id="pdf-canvas"></canvas>
                 <div id="overlay-layer"></div>
@@ -190,23 +190,45 @@
 
     <form id="coord-form" style="display:none;">
         <input type="hidden" name="session_id" value="{{ session_id }}">
-        <input type="hidden" name="imagenes_json" id="imagenes_json" value='{{ imagenes_json | tojson | safe }}'>
+        <input type="hidden" name="row_id" value="{{ row_id }}">
+        <input type="hidden" name="imagenes_json" id="imagenes_json" value='{{ imagenes | tojson | safe }}'>
     </form>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
+    (function() {
+        // Detectar modo de visualización
+        const urlParams = new URLSearchParams(window.location.search);
+        const viewMode = urlParams.get('mode') === 'view';
+        const editScope = urlParams.get('edit_scope') || 'individual'; // 'global' o 'individual'
+        
+        // Actualizar título según el modo
+        const titleElement = document.getElementById('title-mode');
+        if (viewMode) {
+            titleElement.textContent = 'Vista Previa - Solo lectura';
+        } else if (editScope === 'global') {
+            titleElement.textContent = 'Editor de Posiciones - Modo Global (aplica a todos los certificados)';
+        } else {
+            titleElement.textContent = `Editor de Posiciones - Modo Individual (certificado #{{ row_id|int(0) + 1 }})`;
+        }
+        
+        // Si es modo lectura, ocultar el panel izquierdo inmediatamente
+        if (viewMode) {
+            const style = document.createElement('style');
+            style.textContent = '#left-panel { display: none !important; } #main-container { flex-direction: row; } #viewer-panel { flex: 1; }';
+            document.head.appendChild(style);
+        }
+        
         if (!window.pdfjsLib) {
             alert("No se pudo cargar pdf.js desde CDN.");
             throw new Error("pdfjsLib no disponible");
         }
         pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-        const rawDatos = {{ datos_json|safe }};
-        const datos = (typeof rawDatos === "string") ? JSON.parse(rawDatos) : rawDatos;
-        const previewParams = new URLSearchParams(datos).toString();
+        const datosData = {{ datos | tojson | safe }};
+        const previewParams = new URLSearchParams(datosData).toString();
         const pdfUrlBase = `/preview/{{ session_id }}/{{ row_id }}`;
-        const rawImagenes = {{ imagenes_json|safe }};
-        const imagenes = Array.isArray(rawImagenes) ? rawImagenes : [];
+        const initialImagenes = {{ imagenes | tojson | safe }};
         const state = {
             pdfDoc: null,
             currentPage: 1,
@@ -216,8 +238,8 @@
             renderQueue: Promise.resolve(),
             pageWidthIn: parseFloat('{{ page_width_in }}') || 8.27,
             pageHeightIn: parseFloat('{{ page_height_in }}') || 11.69,
-            active: imagenes.length ? imagenes[0].filename : null,
-            images: imagenes.map((item, index) => ({
+            active: initialImagenes.length ? initialImagenes[0].filename : null,
+            images: initialImagenes.map((item, index) => ({
                 key: item.filename || `imagen_${index}`,
                 label: item.original_name || item.filename || `Imagen ${index + 1}`,
                 src: item.src || `/uploads/${item.filename}`,
@@ -452,6 +474,11 @@
         }
 
         function attachDragAndResize(name, el) {
+            // No permitir edición en modo lectura
+            if (viewMode) {
+                return;
+            }
+            
             const handle = document.createElement("div");
             handle.className = "resize-handle";
             el.appendChild(handle);
@@ -605,6 +632,11 @@
                 scheduleRender(state.currentPage);
             }, 120);
 
+            // Si es modo lectura, no agregar event listeners de edición
+            if (viewMode) {
+                return;
+            }
+
             document.getElementById("prev-page").addEventListener("click", () => goToPage(state.currentPage - 1));
             document.getElementById("next-page").addEventListener("click", () => goToPage(state.currentPage + 1));
             zoomRange.addEventListener("input", async () => {
@@ -637,6 +669,7 @@
                 saveStatus.textContent = "Guardando...";
                 setSaving(true);
                 const formData = new FormData(document.getElementById("coord-form"));
+                formData.append('edit_scope', editScope);
                 const res = await fetch("/session/ajustar-posicion", { method: "POST", body: formData });
                 if (!res.ok) {
                     const errorTxt = await res.text();
@@ -738,10 +771,34 @@
             });
         }
 
+        // Deshabilitar controles si es modo lectura
+        if (viewMode) {
+            document.getElementById("guardar-btn").disabled = true;
+            document.getElementById("guardar-btn").style.opacity = '0.5';
+            document.getElementById("guardar-btn").style.cursor = 'not-allowed';
+            
+            document.getElementById("restablecer-btn").disabled = true;
+            document.getElementById("restablecer-btn").style.opacity = '0.5';
+            document.getElementById("restablecer-btn").style.cursor = 'not-allowed';
+            
+            document.getElementById("upload-images-btn").disabled = true;
+            document.getElementById("upload-images-btn").style.opacity = '0.5';
+            document.getElementById("upload-images-btn").style.cursor = 'not-allowed';
+            
+            uploadInput.disabled = true;
+            uploadInput.style.opacity = '0.5';
+            uploadInput.style.cursor = 'not-allowed';
+            
+            activeElementSelect.disabled = true;
+            activeElementSelect.style.opacity = '0.5';
+            activeElementSelect.style.cursor = 'not-allowed';
+        }
+
         init().catch((err) => {
             console.error(err);
             alert("No se pudo cargar el preview PDF con pdf.js.");
         });
+    })();
     </script>
 </body>
 </html>

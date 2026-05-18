@@ -62,7 +62,7 @@
     </div>
 
     <div style="margin-bottom: 12px;">
-        <button type="button" onclick="abrirEditorPosicion(0)">Abrir editor de posicion global</button>
+        <button type="button" onclick="abrirEditorGlobal()">Abrir editor de posicion global</button>
     </div>
 
     <form action="/generar-final" method="post" id="form-final">
@@ -189,22 +189,36 @@
             window.abrirPreview = function(idx) {
                 idx = parseInt(idx, 10);
                 const sessionId = "{{ session_id }}";
-                const params = [];
+                const params = ['mode=view'];
                 variables.forEach(var_name => {
                     const input = document.getElementById(`${var_name}_${idx}`);
                     if (input) {
                         params.push(`${var_name}=${encodeURIComponent(input.value)}`);
                     }
                 });
-                const query = params.length ? `?${params.join('&')}` : '';
+                const query = `?${params.join('&')}`;
                 window.open(`/visor-preview/${sessionId}/${idx}${query}`, '_blank');
             };
 
             window.abrirEditorPosicion = function(idx) {
-                const sessionId = "{{ session_id }}";
                 idx = parseInt(idx, 10);
-                if (isNaN(idx)) idx = 0;
-                window.open(`/visor-preview/${sessionId}/${idx}`, '_blank');
+                const sessionId = "{{ session_id }}";
+                const params = ['mode=edit', 'edit_scope=individual'];
+                variables.forEach(var_name => {
+                    const input = document.getElementById(`${var_name}_${idx}`);
+                    if (input) {
+                        params.push(`${var_name}=${encodeURIComponent(input.value)}`);
+                    }
+                });
+                const query = `?${params.join('&')}`;
+                window.open(`/visor-preview/${sessionId}/${idx}${query}`, '_blank');
+            };
+
+            window.abrirEditorGlobal = function() {
+                const sessionId = "{{ session_id }}";
+                const params = ['mode=edit', 'edit_scope=global'];
+                const query = `?${params.join('&')}`;
+                window.open(`/visor-preview/${sessionId}/0${query}`, '_blank');
             };
         });
     </script>

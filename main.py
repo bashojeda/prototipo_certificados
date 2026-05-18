@@ -963,7 +963,14 @@ async def preview_pdf(request: Request, session_id: str, row_id: int):
         ruta_pdf_base = convertir_docx_a_pdf(ruta_docx, carpeta_preview)
         ruta_pdf = ruta_pdf_base.replace(".pdf", "_overlay.pdf")
         overlays = []
-        for imagen in session.get("imagenes", []):
+        
+        # Usar posiciones individuales si existen, si no usar globales
+        rows_overrides = session.get("rows_overrides", {})
+        imagenes_source = session.get("imagenes", [])
+        if str(row_id) in rows_overrides:
+            imagenes_source = rows_overrides[str(row_id)]
+        
+        for imagen in imagenes_source:
             overlays.append(
                 {
                     "path": imagen.get("path"),
@@ -1002,8 +1009,14 @@ def visor_preview(request: Request, session_id: str, row_id: int, user: dict = D
     for var in session["variables"]:
         datos[var] = query_params.get(var, session["rows"][row_id].get(var, ""))
     
+    # Usar posiciones individuales si existen, si no usar globales
+    imagenes_source = session.get("imagenes", [])
+    rows_overrides = session.get("rows_overrides", {})
+    if str(row_id) in rows_overrides:
+        imagenes_source = rows_overrides[str(row_id)]
+    
     imagenes = []
-    for item in session.get("imagenes", []):
+    for item in imagenes_source:
         imagenes.append(
             {
                 "filename": item.get("filename"),
@@ -1041,6 +1054,8 @@ def visor_preview(request: Request, session_id: str, row_id: int, user: dict = D
 def ajustar_posicion(
     session_id: str = Form(...),
     imagenes_json: str = Form("[]"),
+    edit_scope: str = Form("individual"),
+    row_id: int = Form(0),
     user: dict = Depends(require_permission("editar")),
 ):
     session = PREVIEW_SESSIONS.get(session_id)
@@ -1051,13 +1066,13 @@ def ajustar_posicion(
         imagenes = json.loads(imagenes_json)
         if isinstance(imagenes, list):
             actuales = {img.get("filename"): img for img in session.get("imagenes", [])}
-            session["imagenes"] = []
+            imagenes_procesadas = []
             for item in imagenes:
                 if not item.get("filename"):
                     continue
                 filename = item.get("filename")
                 existing = actuales.get(filename, {})
-                session["imagenes"].append(
+                imagenes_procesadas.append(
                     {
                         "filename": filename,
                         "original_name": item.get("original_name") or existing.get("original_name"),
@@ -1068,10 +1083,28 @@ def ajustar_posicion(
                         "width": float(item.get("width", DEFAULT_SELLO_WIDTH_IN)),
                     }
                 )
+            
+            # Si es edición global, actualizar posiciones para todas las filas
+            if edit_scope == "global":
+                session["imagenes"] = imagenes_procesadas
+                message = "Posiciones actualizadas globalmente"
+            # Si es edición individual, guardar override solo para esa fila
+            elif edit_scope == "individual":
+                # Validar que row_id es válido
+                if row_id < 0 or row_id >= len(session.get("rows", [])):
+                    raise HTTPException(status_code=400, detail="Fila no válida")
+                # Guardar posiciones específicas para esa fila
+                if "rows_overrides" not in session:
+                    session["rows_overrides"] = {}
+                session["rows_overrides"][str(row_id)] = imagenes_procesadas
+                message = f"Posiciones actualizadas para el certificado #{row_id + 1}"
+            else:
+                message = "Posiciones actualizadas"
+            
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Formato JSON invalido para las imagenes")
 
-    return {"ok": True, "message": "Posiciones actualizadas"}
+    return {"ok": True, "message": message}
 
 
 @app.post("/generar-final", response_class=HTMLResponse)
@@ -1140,7 +1173,14 @@ async def generar_final(
             ruta_pdf_base = convertir_docx_a_pdf(ruta_docx, os.path.join("output", "certificados"))
             ruta_pdf = ruta_pdf_base.replace(".pdf", "_overlay.pdf")
             overlays = []
-            for imagen in session.get("imagenes", []):
+            
+            # Usar posiciones individuales si existen, si no usar globales
+            rows_overrides = session.get("rows_overrides", {})
+            imagenes_source = session.get("imagenes", [])
+            if str(idx) in rows_overrides:
+                imagenes_source = rows_overrides[str(idx)]
+            
+            for imagen in imagenes_source:
                 overlays.append(
                     {
                         "path": imagen.get("path"),
