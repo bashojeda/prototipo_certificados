@@ -1087,6 +1087,7 @@ def ajustar_posicion(
             # Si es edición global, actualizar posiciones para todas las filas
             if edit_scope == "global":
                 session["imagenes"] = imagenes_procesadas
+                session["rows_overrides"] = {}
                 message = "Posiciones actualizadas globalmente"
             # Si es edición individual, guardar override solo para esa fila
             elif edit_scope == "individual":
