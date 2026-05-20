@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Certificados{% endblock %}</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}app-shell{% endblock %}">
+    <div class="app-shell">
+        <header class="topbar">
+            <div class="brand">
+                <a class="brand-link" href="/dashboard">CertifyPro</a>
+                <p class="brand-subtitle">Instituto Tecnologico de Mexicali</p>
+            </div>
+            {% if user %}
+            <nav class="topnav">
+                <span class="user-chip">{{ user.username }}</span>
+                <a class="topnav-link" href="/dashboard">Dashboard</a>
+                <a class="topnav-link" href="/tickets">Tickets</a>
+                <a class="topnav-link" href="/logout">Salir</a>
+            </nav>
+            {% endif %}
+        </header>
+
+        <main class="page-body">
+            <div class="page-container">
+                {% if message %}
+                <div class="message-banner">{{ message }}</div>
+                {% endif %}
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+
+        <footer class="page-footer">
+            <span>© 2026 CertifyPro</span>
+            <p>Plataforma institucional para generación de constancias y certificados.</p>
+            <p>Administrado por el Departamento de Comunicacion y Difusion.</p>
+        </footer>
+    </div>
+</body>
+</html>

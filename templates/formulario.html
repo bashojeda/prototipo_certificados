@@ -1,47 +1,77 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Generador de certificados</title>
-</head>
-<body>
-    <h1>Panel de control de certificados</h1>
-    <p>Usuario: <strong>{{ user.username }}</strong> (Rol: {{ user.role }})</p>
-    <p><a href="/logout">Cerrar sesión</a> | <a href="/certificados">Ver certificados generados</a></p>
+{% extends "base.html" %}
 
-    {% if can_preview %}
-    <h2>Subir datos para previsualizar</h2>
-    <form action="/previsualizar" method="post" enctype="multipart/form-data">
-        <label for="file">Lista Excel:</label>
+{% block title %}Dashboard · Certificados{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="actions-row" style="justify-content: space-between; align-items: center; gap: 16px;">
+        <div>
+            <h1 class="section-title">Panel de control</h1>
+            <p class="section-subtitle">Bienvenido, <strong>{{ user.username }}</strong>. Rol: {{ user.role }}.</p>
+        </div>
+        <div class="actions-row" style="margin: 0;">
+            <a class="button-link" href="/certificados">Ver certificados</a>
+            <a class="button-link" href="/logout">Cerrar sesión</a>
+        </div>
+    </div>
+</div>
+
+{% if can_preview %}
+<div class="card">
+    <h2 class="section-title">Subir datos para previsualizar</h2>
+    <p class="section-subtitle">Carga tu Excel, la plantilla DOCX y las imágenes para crear constancias.</p>
+
+    <form action="/previsualizar" method="post" enctype="multipart/form-data" class="form-grid">
+        <label for="file">Lista Excel</label>
         <input type="file" id="file" name="file" accept=".xlsx,.xls" required>
 
-        <label for="plantilla">Plantilla DOCX:</label>
+        <label for="plantilla">Plantilla DOCX</label>
         <input type="file" id="plantilla" name="plantilla" accept=".docx" required>
 
-        <label for="imagenes">Imágenes para superponer (sellos / firmas / logos) - opcional:</label>
+        <label for="imagenes">Imágenes opcionales (sellos / firmas / logos)</label>
         <input type="file" id="imagenes" name="imagenes" accept="image/png,image/jpeg" multiple>
 
-        <p>Si necesitas varias imágenes de firma o sello, selecciónalas todas aquí. Luego podrás moverlas y cambiar su tamaño en el editor.</p>
+        <p class="text-muted">Selecciona varias imágenes si necesitas combinarlas en el editor luego.</p>
 
-        <button type="submit">Previsualizar certificados</button>
+        <div class="actions-row">
+            <button type="submit" class="btn-primary">Previsualizar certificados</button>
+        </div>
     </form>
-
-    {% if user.role == 'creator' and ticket_history %}
-    <h2>Historial de tickets</h2>
-    <p><a href="/tickets">Ver todos los tickets</a></p>
-    <ul>
-        {% for ticket in ticket_history %}
-        <li>
-            <strong>ID:</strong> {{ ticket.id }}
-            | <strong>Fecha:</strong> {{ ticket.created_at }}
-            | <strong>Constancias:</strong> {{ ticket.row_count }}
-            | <a href="/tickets/{{ ticket.id }}">Ver</a>
-        </li>
-        {% endfor %}
-    </ul>
-    {% endif %}
-    {% else %}
+</div>
+{% else %}
+<div class="alert-card">
     <p>No tienes permiso para crear o editar certificados, solo puedes visualizarlos.</p>
-    {% endif %}
-</body>
-</html>
+</div>
+{% endif %}
+
+{% if user.role == 'creator' and ticket_history %}
+<div class="card">
+    <h2 class="section-title">Historial de tickets</h2>
+    <p class="section-subtitle">Accede fácilmente a los procesos de certificados anteriores.</p>
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Fecha</th>
+                    <th>Constancias</th>
+                    <th>Plantilla</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ticket in ticket_history %}
+                <tr>
+                    <td>{{ ticket.id }}</td>
+                    <td>{{ ticket.created_at }}</td>
+                    <td>{{ ticket.row_count }}</td>
+                    <td>{{ ticket.plantilla_nombre }}</td>
+                    <td><a href="/tickets/{{ ticket.id }}">Ver</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

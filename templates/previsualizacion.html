@@ -1,229 +1,236 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Previsualizacion de certificados</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 24px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 16px;
-        }
-        th, td {
-            border: 1px solid #ccc;
-            padding: 8px;
-            text-align: left;
-        }
-        input[type="text"] {
-            width: 100%;
-            box-sizing: border-box;
-            padding: 6px;
-        }
-        .acciones {
-            margin-top: 16px;
-            display: flex;
-            gap: 12px;
-            align-items: center;
-        }
-    </style>
-</head>
-<body>
-    <h2>Previsualizacion editable</h2>
-    <p>Usuario: <strong>{{ user.username }}</strong> (Rol: {{ user.role }})</p>
-    <p><a href="/dashboard">Dashboard</a> | <a href="/certificados">Ver certificados</a> | <a href="/logout">Cerrar sesión</a></p>
+{% extends "base.html" %}
 
-    <div>
-        <strong>Archivos cargados:</strong>
-        <ul>
-            <li>Plantilla: <a href="{% if ticket_id %}/ticket-assets/{{ ticket_id }}/{{ plantilla_nombre }}{% else %}/uploads/{{ plantilla_nombre }}{% endif %}" target="_blank">{{ plantilla_nombre }}</a></li>
-            {% for imagen in imagenes %}
-            <li>Imagen: <a href="{% if ticket_id %}/ticket-assets/{{ ticket_id }}/{{ imagen.filename }}{% else %}/uploads/{{ imagen.filename }}{% endif %}" target="_blank">{{ imagen.original_name or imagen.filename }}</a></li>
-            {% endfor %}
-        </ul>
+{% block title %}Previsualización · Certificados{% endblock %}
 
-        <div style="margin-top: 16px; padding: 12px; border: 1px solid #ddd; background: #f8f8f8; max-width: 560px;">
+{% block content %}
+<div class="card">
+    <div class="actions-row" style="justify-content: space-between; align-items: flex-start; gap: 16px;">
+        <div>
+            <h1 class="section-title">Previsualización editable</h1>
+            <p class="section-subtitle">Ajusta datos y genera los archivos finales con seguridad.</p>
+        </div>
+        <div class="actions-row" style="margin: 0; gap: 12px; flex-wrap: wrap;">
+            <a class="button-link" href="/dashboard">Dashboard</a>
+            <a class="button-link" href="/certificados">Ver certificados</a>
+            <a class="button-link" href="/logout">Cerrar sesión</a>
+        </div>
+    </div>
+
+    <div class="card-group">
+        <div class="card" style="padding: 20px;">
+            <strong>Archivos cargados:</strong>
+            <ul style="margin-top: 12px;">
+                <li>Plantilla: <a href="{% if ticket_id %}/ticket-assets/{{ ticket_id }}/{{ plantilla_nombre }}{% else %}/uploads/{{ plantilla_nombre }}{% endif %}" target="_blank">{{ plantilla_nombre }}</a></li>
+                {% for imagen in imagenes %}
+                <li>Imagen: <a href="{% if ticket_id %}/ticket-assets/{{ ticket_id }}/{{ imagen.filename }}{% else %}/uploads/{{ imagen.filename }}{% endif %}" target="_blank">{{ imagen.original_name or imagen.filename }}</a></li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="card" style="padding: 20px;">
             <h3>Agregar más imágenes</h3>
-            <form id="upload-more-images-form" enctype="multipart/form-data">
+            <form id="upload-more-images-form" enctype="multipart/form-data" class="form-grid">
                 <input type="file" id="new-images" name="imagenes" accept="image/*" multiple>
-                <button type="button" id="upload-more-btn">Subir imágenes</button>
+                <div class="actions-row" style="margin-top: 12px;">
+                    <button type="button" id="upload-more-btn" class="btn-secondary">Subir imágenes</button>
+                </div>
             </form>
-            <div id="upload-more-status" style="margin-top:8px;font-size:.95rem;color:#333;"></div>
+            <div id="upload-more-status" style="margin-top: 12px; font-size: 0.95rem; color: var(--text-muted);"></div>
         </div>
     </div>
 
-    <div>
+    <div class="card" style="padding: 20px;">
         <h3>Posicionamiento de imágenes</h3>
-        <p>Las coordenadas están en pulgadas (x=izquierda, y=arriba / espaciado antes).</p>
-        <p>Puedes mover y cambiar el tamaño de cada imagen en el editor.</p>
-    </div>
-
-    <div style="margin-bottom: 12px;">
-        <button type="button" onclick="abrirEditorGlobal()">Abrir editor de posicion global</button>
-        <div style="margin-top: 8px; font-size: 0.95rem; color: #333;">
-            El modo global ajusta posiciones para todos los certificados. El botón "Editar posicion" en cada fila ajusta solo ese certificado.
+        <p class="text-muted">Las coordenadas están en pulgadas (x=izquierda, y=arriba). Ajusta cada imagen en el editor.</p>
+        <div class="actions-row" style="margin-top: 16px;">
+            <button type="button" onclick="abrirEditorGlobal()" class="btn-primary">Abrir editor de posición global</button>
         </div>
+        <p class="text-muted" style="margin-top: 12px;">Modo global aplica a todos los certificados. Usa "Editar posición" para cambios individuales.</p>
     </div>
 
-    <form action="/generar-final" method="post" id="form-final">
+    <form action="/generar-final" method="post" id="form-final" class="card" style="padding: 20px;">
         <input type="hidden" name="session_id" value="{{ session_id }}">
         {% if ticket_id %}
         <input type="hidden" name="ticket_id" value="{{ ticket_id }}">
         {% endif %}
 
         {% if editing_ticket %}
-            <div style="margin:16px 0; padding:12px; border:1px solid #888; background:#f8f8f8;">
-                <strong>Estás editando un ticket existente:</strong>
-                <div>ID del ticket: {{ ticket_id }}</div>
-                <div>Al guardar, se actualizará el ticket con las nuevas constancias generadas.</div>
-            </div>
+        <div class="alert-card">
+            <strong>Estás editando un ticket existente:</strong>
+            <div>ID del ticket: {{ ticket_id }}</div>
+            <div>Al guardar, se actualizará el ticket con las nuevas constancias generadas.</div>
+        </div>
         {% endif %}
 
-        <label>
+        <label class="text-muted">
             <input type="checkbox" id="seleccionar-todos" checked>
             Seleccionar todos
         </label>
 
-        <table>
-            <thead>
-                <tr>
-                    <th>Seleccionar</th>
-                    {% for var in variables %}
-                    <th>{{ var }}</th>
+        <div class="table-card" style="margin-top: 16px;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Seleccionar</th>
+                        {% for var in variables %}
+                        <th>{{ var }}</th>
+                        {% endfor %}
+                        <th>Previsualizar PDF</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for idx, row in rows %}
+                    <tr>
+                        <td>
+                            <input type="checkbox" class="selector" name="selected_ids" value="{{ idx }}" checked>
+                        </td>
+                        {% for var in variables %}
+                        <td>
+                            <input type="text" id="{{ var }}_{{ idx }}" name="{{ var }}_{{ idx }}" value="{{ row.get(var, '') }}" required>
+                        </td>
+                        {% endfor %}
+                        <td class="cell-actions">
+                            <button type="button" class="btn-secondary" onclick="abrirPreview('{{ idx }}')">Ver previsualización</button>
+                            <button type="button" class="btn-secondary" onclick="abrirEditorPosicion('{{ idx }}')">Editar posición</button>
+                            <button type="button" class="btn-secondary" onclick="copiarLink('{{ idx }}')">Copiar link</button>
+                        </td>
+                    </tr>
                     {% endfor %}
-                    <th>Previsualizar PDF</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for idx, row in rows %}
-                <tr>
-                    <td>
-                        <input type="checkbox" class="selector" name="selected_ids" value="{{ idx }}" checked>
-                    </td>
-                    {% for var in variables %}
-                    <td>
-                        <input type="text" id="{{ var }}_{{ idx }}" name="{{ var }}_{{ idx }}" value="{{ row.get(var, '') }}" required>
-                    </td>
-                    {% endfor %}
-                    <td>
-                        <button type="button" onclick="abrirPreview('{{ idx }}')">Ver previsualizacion</button>
-                        <button type="button" onclick="abrirEditorPosicion('{{ idx }}')">Editar posicion</button>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                </tbody>
+            </table>
+        </div>
 
-        <div class="acciones">
-            <button type="submit">Generar PDFs finales</button>
-            <a href="/">Volver</a>
+        <div class="actions-row" style="margin-top: 20px; justify-content: flex-start;">
+            <button type="submit" class="btn-primary">Generar PDFs finales</button>
+            <a class="button-link" href="/">Volver</a>
         </div>
     </form>
+</div>
 
-    <div id="config" data-variables='{{ variables_json }}' style="display:none;"></div>
+<div id="config" data-variables='{{ variables_json }}' style="display:none;"></div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const configDiv = document.getElementById('config');
-            let variablesStr = configDiv.getAttribute('data-variables');
-            let variables = [];
-            
-            try {
-                if (variablesStr && variablesStr.trim() && variablesStr !== '[]') {
-                    variables = JSON.parse(variablesStr);
-                }
-            } catch (e) {
-                console.error('Error parsing variables:', e);
-                console.log('Variables string:', variablesStr);
+{% block head %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const configDiv = document.getElementById('config');
+        let variablesStr = configDiv.getAttribute('data-variables');
+        let variables = [];
+        
+        try {
+            if (variablesStr && variablesStr.trim() && variablesStr !== '[]') {
+                variables = JSON.parse(variablesStr);
             }
-            
-            const seleccionarTodos = document.getElementById('seleccionar-todos');
-            const selectors = document.querySelectorAll('.selector');
+        } catch (e) {
+            console.error('Error parsing variables:', e);
+            console.log('Variables string:', variablesStr);
+        }
+        
+        const seleccionarTodos = document.getElementById('seleccionar-todos');
+        const selectors = document.querySelectorAll('.selector');
 
-            seleccionarTodos.addEventListener('change', function () {
-                selectors.forEach((cb) => {
-                    cb.checked = this.checked;
-                });
-            });
-
+        seleccionarTodos.addEventListener('change', function () {
             selectors.forEach((cb) => {
-                cb.addEventListener('change', function () {
-                    const total = selectors.length;
-                    const marcados = Array.from(selectors).filter((x) => x.checked).length;
-                    seleccionarTodos.checked = marcados === total;
-                });
+                cb.checked = this.checked;
             });
+        });
 
-            document.getElementById('upload-more-btn').addEventListener('click', async function () {
-                const fileInput = document.getElementById('new-images');
-                const status = document.getElementById('upload-more-status');
-                if (!fileInput.files.length) {
-                    status.textContent = 'Selecciona al menos una imagen.';
+        selectors.forEach((cb) => {
+            cb.addEventListener('change', function () {
+                const total = selectors.length;
+                const marcados = Array.from(selectors).filter((x) => x.checked).length;
+                seleccionarTodos.checked = marcados === total;
+            });
+        });
+
+        document.getElementById('upload-more-btn').addEventListener('click', async function () {
+            const fileInput = document.getElementById('new-images');
+            const status = document.getElementById('upload-more-status');
+            if (!fileInput.files.length) {
+                status.textContent = 'Selecciona al menos una imagen.';
+                return;
+            }
+            const formData = new FormData();
+            formData.append('session_id', '{{ session_id }}');
+            for (const file of fileInput.files) {
+                formData.append('imagenes', file);
+            }
+            status.textContent = 'Subiendo imágenes...';
+            try {
+                const res = await fetch('/session/subir-imagenes', {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    status.textContent = data.message || 'Error al subir imágenes.';
                     return;
                 }
-                const formData = new FormData();
-                formData.append('session_id', '{{ session_id }}');
-                for (const file of fileInput.files) {
-                    formData.append('imagenes', file);
-                }
-                status.textContent = 'Subiendo imágenes...';
-                try {
-                    const res = await fetch('/session/subir-imagenes', {
-                        method: 'POST',
-                        body: formData,
-                    });
-                    const data = await res.json();
-                    if (!res.ok) {
-                        status.textContent = data.message || 'Error al subir imágenes.';
-                        return;
-                    }
-                    status.textContent = 'Imágenes agregadas correctamente. Recarga para ver los cambios.';
-                    fileInput.value = '';
-                    setTimeout(() => location.reload(), 800);
-                } catch (err) {
-                    console.error(err);
-                    status.textContent = 'No se pudo subir las imágenes. Intenta nuevamente.';
+                status.textContent = 'Imágenes agregadas correctamente. Recarga para ver los cambios.';
+                fileInput.value = '';
+                setTimeout(() => location.reload(), 800);
+            } catch (err) {
+                console.error(err);
+                status.textContent = 'No se pudo subir las imágenes. Intenta nuevamente.';
+            }
+        });
+
+        function buildQuery(idx) {
+            const params = [];
+            variables.forEach(var_name => {
+                const input = document.getElementById(`${var_name}_${idx}`);
+                if (input) {
+                    params.push(`${encodeURIComponent(var_name)}=${encodeURIComponent(input.value)}`);
                 }
             });
+            return params.join('&');
+        }
 
-            window.abrirPreview = function(idx) {
-                idx = parseInt(idx, 10);
-                const sessionId = "{{ session_id }}";
-                const params = ['mode=view'];
-                variables.forEach(var_name => {
-                    const input = document.getElementById(`${var_name}_${idx}`);
-                    if (input) {
-                        params.push(`${var_name}=${encodeURIComponent(input.value)}`);
-                    }
-                });
-                const query = `?${params.join('&')}`;
-                window.open(`/visor-preview/${sessionId}/${idx}${query}`, '_blank');
-            };
+        window.abrirPreview = function(idx) {
+            idx = parseInt(idx, 10);
+            const sessionId = "{{ session_id }}";
+            const query = buildQuery(idx);
+            window.open(`/visor-preview/${sessionId}/${idx}${query ? `?${query}` : ''}`, '_blank');
+        };
 
-            window.abrirEditorPosicion = function(idx) {
-                idx = parseInt(idx, 10);
-                const sessionId = "{{ session_id }}";
-                const params = ['mode=edit', 'edit_scope=individual'];
-                variables.forEach(var_name => {
-                    const input = document.getElementById(`${var_name}_${idx}`);
-                    if (input) {
-                        params.push(`${var_name}=${encodeURIComponent(input.value)}`);
-                    }
-                });
-                const query = `?${params.join('&')}`;
-                window.open(`/visor-preview/${sessionId}/${idx}${query}`, '_blank');
-            };
+        window.abrirEditorPosicion = function(idx) {
+            idx = parseInt(idx, 10);
+            const sessionId = "{{ session_id }}";
+            const params = ['mode=edit', 'edit_scope=individual'];
+            const dataQuery = buildQuery(idx);
+            if (dataQuery) {
+                params.push(dataQuery);
+            }
+            const query = `?${params.join('&')}`;
+            window.open(`/visor-preview/${sessionId}/${idx}${query}`, '_blank');
+        };
 
-            window.abrirEditorGlobal = function() {
-                const sessionId = "{{ session_id }}";
-                const params = ['mode=edit', 'edit_scope=global'];
-                const query = `?${params.join('&')}`;
-                window.open(`/visor-preview/${sessionId}/0${query}`, '_blank');
-            };
-        });
-    </script>
-</body>
-</html>
+        window.copiarLink = async function(idx) {
+            idx = parseInt(idx, 10);
+            const sessionId = "{{ session_id }}";
+            const query = buildQuery(idx);
+            const link = `${window.location.origin}/preview/${sessionId}/${idx}${query ? `?${query}` : ''}`;
+            try {
+                await navigator.clipboard.writeText(link);
+                alert('Enlace copiado al portapapeles');
+            } catch (err) {
+                const textarea = document.createElement('textarea');
+                textarea.value = link;
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-9999px';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                alert('Enlace copiado al portapapeles');
+            }
+        };
+
+        window.abrirEditorGlobal = function() {
+            const sessionId = "{{ session_id }}";
+            const params = ['mode=edit', 'edit_scope=global'];
+            const query = `?${params.join('&')}`;
+            window.open(`/visor-preview/${sessionId}/0${query}`, '_blank');
+        };
+    });
+</script>
+{% endblock %}
+{% endblock %}

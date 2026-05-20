@@ -1,35 +1,37 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Resultado</title>
-</head>
-<body>
-    <h2>Certificados generados</h2>
+{% extends "base.html" %}
 
+{% block title %}Resultados · Certificados{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1 class="section-title">Certificados generados</h1>
+    <p class="section-subtitle">Descarga rápida y acceso directo a cada archivo.</p>
     {% if user %}
-    <p>Usuario: <strong>{{ user.username }}</strong> (Rol: {{ user.role }})</p>
-    <p><a href="/dashboard">Ir al dashboard</a> | <a href="/certificados">Ver todos los certificados</a> | <a href="/logout">Cerrar sesión</a></p>
+    <p><strong>{{ user.username }}</strong> · Rol: {{ user.role }}</p>
     {% endif %}
 
     {% if generados %}
-        <ul>
-            {% for item in generados %}
-                <li>
-                    {{ item.nombre }}:
-                    {% if item.pdf %}
-                        <a href="{{ item.pdf }}" target="_blank">PDF</a>
-                    {% endif %}
-                    {% if item.docx %}
-                        | <a href="{{ item.docx }}" target="_blank">DOCX</a>
-                    {% endif %}
-                </li>
-            {% endfor %}
-        </ul>
+    <div class="card-group" style="margin-top: 20px;">
+        {% for item in generados %}
+        <div class="card" style="padding: 18px;">
+            <h3 style="margin-top: 0;">{{ item.nombre }}</h3>
+            <div class="actions-row" style="flex-wrap: wrap; gap: 10px;">
+                {% if item.pdf %}
+                <a class="btn-primary" href="{{ item.pdf }}" target="_blank">Descargar PDF</a>
+                {% endif %}
+                {% if item.docx %}
+                <a class="button-secondary" href="{{ item.docx }}" target="_blank">Descargar DOCX</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
     {% else %}
-        <p>No se genero ningun certificado.</p>
+    <div class="alert-card">No se generó ningún certificado.</div>
     {% endif %}
 
-    <a href="/dashboard">Volver al dashboard</a>
-</body>
-</html>
+    <div class="actions-row" style="margin-top: 24px;">
+        <a class="button-link" href="/dashboard">Volver al dashboard</a>
+    </div>
+</div>
+{% endblock %}

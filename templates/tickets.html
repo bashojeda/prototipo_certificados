@@ -1,43 +1,51 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Historial de tickets</title>
-</head>
-<body>
-    <h1>Historial de tickets</h1>
-    <p>Usuario: <strong>{{ user.username }}</strong> (Rol: {{ user.role }})</p>
-    <p><a href="/dashboard">Dashboard</a> | <a href="/logout">Cerrar sesión</a></p>
+{% extends "base.html" %}
+
+{% block title %}Historial de tickets · Certificados{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="actions-row" style="justify-content: space-between; align-items: center;">
+        <div>
+            <h1 class="section-title">Historial de tickets</h1>
+            <p class="section-subtitle">Revisa los procesos de generación de certificados.</p>
+        </div>
+        <div class="actions-row" style="margin: 0; gap: 12px;">
+            <a class="button-link" href="/dashboard">Dashboard</a>
+            <a class="button-link" href="/logout">Cerrar sesión</a>
+        </div>
+    </div>
 
     {% if tickets %}
-    <table border="1" cellpadding="8" cellspacing="0">
-        <thead>
-            <tr>
-                <th>ID del ticket</th>
-                <th>Fecha</th>
-                <th>Plantilla</th>
-                <th>Constancias</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for ticket in tickets %}
-            <tr>
-                <td>{{ ticket.id }}</td>
-                <td>{{ ticket.created_at }}</td>
-                <td>{{ ticket.plantilla_nombre }}</td>
-                <td>{{ ticket.row_count }}</td>
-                <td>
-                    <a href="/tickets/{{ ticket.id }}">Ver</a>
-                    |
-                    <a href="/tickets/{{ ticket.id }}/editar">Editar</a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="table-card" style="margin-top: 20px;">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID del ticket</th>
+                    <th>Fecha</th>
+                    <th>Plantilla</th>
+                    <th>Constancias</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ticket in tickets %}
+                <tr>
+                    <td>{{ ticket.id }}</td>
+                    <td>{{ ticket.created_at }}</td>
+                    <td>{{ ticket.plantilla_nombre }}</td>
+                    <td>{{ ticket.row_count }}</td>
+                    <td>
+                        <a href="/tickets/{{ ticket.id }}">Ver</a>
+                        |
+                        <a href="/tickets/{{ ticket.id }}/editar">Editar</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% else %}
     <p>No hay tickets registrados aún.</p>
     {% endif %}
-</body>
-</html>
+</div>
+{% endblock %}

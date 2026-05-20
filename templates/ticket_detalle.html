@@ -1,91 +1,109 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Detalle del ticket</title>
-</head>
-<body>
-    <h1>Detalle del ticket</h1>
-    <p>Usuario: <strong>{{ user.username }}</strong> (Rol: {{ user.role }})</p>
-    <p><a href="/dashboard">Dashboard</a> | <a href="/tickets">Volver a tickets</a> | <a href="/logout">Cerrar sesión</a></p>
+{% extends "base.html" %}
 
-    <h2>Ticket {{ ticket.id }}</h2>
-    <p><strong>Creado por:</strong> {{ ticket.created_by }}</p>
-    <p><strong>Fecha de creación:</strong> {{ ticket.created_at }}</p>
-    {% if ticket.updated_at %}
-    <p><strong>Última actualización:</strong> {{ ticket.updated_at }}</p>
-    {% endif %}
-    <p><strong>Plantilla:</strong> {{ ticket.plantilla_nombre }}</p>
-    <p><strong>Constancias:</strong> {{ ticket.rows | length }}</p>
+{% block title %}Detalle del ticket · Certificados{% endblock %}
 
-    <p><a href="/tickets/{{ ticket.id }}/editar">Reabrir ticket para editar</a></p>
+{% block content %}
+<div class="card">
+    <div class="actions-row" style="justify-content: space-between; align-items: flex-start;">
+        <div>
+            <h1 class="section-title">Detalle del ticket</h1>
+            <p class="section-subtitle">Información completa del proceso de generación.</p>
+        </div>
+        <div class="actions-row" style="margin: 0; gap: 12px; flex-wrap: wrap;">
+            <a class="button-link" href="/dashboard">Dashboard</a>
+            <a class="button-link" href="/tickets">Volver a tickets</a>
+            <a class="button-link" href="/logout">Cerrar sesión</a>
+        </div>
+    </div>
 
-    <h3>Archivos guardados</h3>
-    <ul>
-        <li>Plantilla: {{ ticket.plantilla_nombre }}</li>
-        {% if ticket.imagenes %}
-            {% for imagen in ticket.imagenes %}
+    <div class="card-group" style="margin-top: 20px;">
+        <div class="card" style="padding: 18px;">
+            <h2 style="margin-top:0;">Ticket {{ ticket.id }}</h2>
+            <p><strong>Creado por:</strong> {{ ticket.created_by }}</p>
+            <p><strong>Fecha de creación:</strong> {{ ticket.created_at }}</p>
+            {% if ticket.updated_at %}
+            <p><strong>Última actualización:</strong> {{ ticket.updated_at }}</p>
+            {% endif %}
+            <p><strong>Plantilla:</strong> {{ ticket.plantilla_nombre }}</p>
+            <p><strong>Constancias:</strong> {{ ticket.rows | length }}</p>
+            <a class="btn-primary" href="/tickets/{{ ticket.id }}/editar">Reabrir ticket para editar</a>
+        </div>
+
+        <div class="card" style="padding: 18px;">
+            <h3>Archivos guardados</h3>
+            <ul style="margin-top: 12px;">
+                <li>Plantilla: {{ ticket.plantilla_nombre }}</li>
+                {% if ticket.imagenes %}
+                    {% for imagen in ticket.imagenes %}
+                    <li>
+                        Imagen: <a href="/ticket-assets/{{ ticket.id }}/{{ imagen.filename }}" target="_blank">{{ imagen.original_name or imagen.filename }}</a>
+                        (Página {{ imagen.page }}, Ancho {{ imagen.width }}")
+                    </li>
+                    {% endfor %}
+                {% else %}
+                    {% if ticket.sello_nombre %}
+                    <li>Sello: {{ ticket.sello_nombre }}</li>
+                    {% endif %}
+                    {% if ticket.firma_nombre %}
+                    <li>Firma: {{ ticket.firma_nombre }}</li>
+                    {% endif %}
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+
+    <div class="card" style="padding: 18px; margin-top: 20px;">
+        <h3>Constancias generadas</h3>
+        {% if ticket.generated %}
+        <ul style="margin-top: 12px;">
+            {% for item in ticket.generated %}
             <li>
-                Imagen: <a href="/ticket-assets/{{ ticket.id }}/{{ imagen.filename }}" target="_blank">{{ imagen.original_name or imagen.filename }}</a>
-                (Página {{ imagen.page }}, Ancho {{ imagen.width }}")
+                {{ item.nombre }}
+                {% if item.pdf %}
+                    | <a href="{{ item.pdf }}" target="_blank">PDF</a>
+                {% endif %}
+                {% if item.docx %}
+                    | <a href="{{ item.docx }}" target="_blank">DOCX</a>
+                {% endif %}
+                {% if item.row_index is not none %}
+                    | Fila: {{ item.row_index + 1 }}
+                {% endif %}
             </li>
             {% endfor %}
+        </ul>
         {% else %}
-            {% if ticket.sello_nombre %}
-            <li>Sello: {{ ticket.sello_nombre }}</li>
-            {% endif %}
-            {% if ticket.firma_nombre %}
-            <li>Firma: {{ ticket.firma_nombre }}</li>
-            {% endif %}
+        <p>No se han generado certificados todavía para este ticket.</p>
         {% endif %}
-    </ul>
+    </div>
 
-    <h3>Constancias generadas</h3>
-    {% if ticket.generated %}
-    <ul>
-        {% for item in ticket.generated %}
-        <li>
-            {{ item.nombre }}
-            {% if item.pdf %}
-                | <a href="{{ item.pdf }}" target="_blank">PDF</a>
-            {% endif %}
-            {% if item.docx %}
-                | <a href="{{ item.docx }}" target="_blank">DOCX</a>
-            {% endif %}
-            {% if item.row_index is not none %}
-                | Fila: {{ item.row_index + 1 }}
-            {% endif %}
-        </li>
-        {% endfor %}
-    </ul>
-    {% else %}
-    <p>No se han generado certificados todavía para este ticket.</p>
-    {% endif %}
-
-    <h3>Datos originales</h3>
     {% if ticket.rows %}
-    <table border="1" cellpadding="6" cellspacing="0">
-        <thead>
-            <tr>
-                <th>#</th>
-                {% for var in ticket.variables %}
-                <th>{{ var }}</th>
-                {% endfor %}
-                <th>Acción</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for row in ticket.rows %}
-            <tr>
-                <td>{{ loop.index }}</td>
-                {% for var in ticket.variables %}
-                <td>{{ row.get(var, '') }}</td>
-                {% endfor %}
-                <td><a href="/tickets/{{ ticket.id }}/editar/{{ loop.index0 }}">Ver / editar</a></td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="card" style="padding: 18px; margin-top: 20px;">
+        <h3>Datos originales</h3>
+        <div class="table-card" style="margin-top: 12px;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        {% for var in ticket.variables %}
+                        <th>{{ var }}</th>
+                        {% endfor %}
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in ticket.rows %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        {% for var in ticket.variables %}
+                        <td>{{ row.get(var, '') }}</td>
+                        {% endfor %}
+                        <td><a href="/tickets/{{ ticket.id }}/editar/{{ loop.index0 }}">Ver / editar</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
     {% endif %}
-</body>
-</html>
+</div>
+{% endblock %}

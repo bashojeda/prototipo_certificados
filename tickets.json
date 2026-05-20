@@ -360,5 +360,266 @@
         "row_index": 9
       }
     ]
+  },
+  {
+    "id": "8f17ccb4f8164f478bb7b45291f4f08e",
+    "created_at": "2026-05-20T00:57:19.426540",
+    "created_by": "creator",
+    "plantilla_nombre": "PlantillaV2.docx",
+    "imagenes": [
+      {
+        "filename": "b194ae525f9445358b082f206131e8b7_img_0_ChatGPT Image 16 may 2026, 07_03_01 p.m..png",
+        "original_name": "ChatGPT Image 16 may 2026, 07_03_01 p.m..png",
+        "path": "output\\tickets\\8f17ccb4f8164f478bb7b45291f4f08e\\b194ae525f9445358b082f206131e8b7_img_0_ChatGPT Image 16 may 2026, 07_03_01 p.m..png",
+        "x": 0.0,
+        "y": 0.0,
+        "width": 2.5,
+        "page": 1
+      },
+      {
+        "filename": "b194ae525f9445358b082f206131e8b7_img_1_Firma.png",
+        "original_name": "Firma.png",
+        "path": "output\\tickets\\8f17ccb4f8164f478bb7b45291f4f08e\\b194ae525f9445358b082f206131e8b7_img_1_Firma.png",
+        "x": 0.0,
+        "y": 0.0,
+        "width": 2.5,
+        "page": 1
+      },
+      {
+        "filename": "b194ae525f9445358b082f206131e8b7_img_2_Sello.png",
+        "original_name": "Sello.png",
+        "path": "output\\tickets\\8f17ccb4f8164f478bb7b45291f4f08e\\b194ae525f9445358b082f206131e8b7_img_2_Sello.png",
+        "x": 0.0,
+        "y": 0.0,
+        "width": 2.5,
+        "page": 1
+      }
+    ],
+    "page_width_in": 8.5,
+    "page_height_in": 11.0,
+    "variables": [
+      "apellido_materno",
+      "apellido_paterno",
+      "carrera",
+      "fecha",
+      "nombre",
+      "nombre_institucion",
+      "numero_control"
+    ],
+    "rows": [
+      {
+        "apellido_paterno": "Perez",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_materno": "Lopez",
+        "carrera": "Ingeniería en Sistemas Computacionales",
+        "nombre": "Juan",
+        "numero_control": "20230001",
+        "fecha": "2026-03-09 00:00:00"
+      },
+      {
+        "apellido_paterno": "Gonzalez",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_materno": "Ramirez",
+        "carrera": "Ingeniería Industrial",
+        "nombre": "Maria",
+        "numero_control": "20230002",
+        "fecha": "2026-03-09 00:00:00"
+      },
+      {
+        "apellido_paterno": "Hernandez",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_materno": "Torres",
+        "carrera": "Ingeniería Mecatrónica",
+        "nombre": "Carlos",
+        "numero_control": "20230003",
+        "fecha": "2026-03-09 00:00:00"
+      },
+      {
+        "apellido_paterno": "Martinez",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_materno": "Soto",
+        "carrera": "Ingenieria en Logistica",
+        "nombre": "Ana",
+        "numero_control": "20230004",
+        "fecha": "2026-03-09 00:00:00"
+      },
+      {
+        "apellido_paterno": "Garcia",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_materno": "Navarro",
+        "carrera": "Ingeniería Civil",
+        "nombre": "Luis",
+        "numero_control": "20230005",
+        "fecha": "2026-03-09 00:00:00"
+      },
+      {
+        "apellido_paterno": "Diaz",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_materno": "Castro",
+        "carrera": "Contaduría Pública",
+        "nombre": "Sofia",
+        "numero_control": "20230006",
+        "fecha": "2026-03-09 00:00:00"
+      },
+      {
+        "apellido_paterno": "Morales",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_materno": "Vega",
+        "carrera": "Ingeniería Electrónica",
+        "nombre": "Diego",
+        "numero_control": "20230007",
+        "fecha": "2026-03-09 00:00:00"
+      },
+      {
+        "apellido_paterno": "Rojas",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_materno": "Mendoza",
+        "carrera": "Contaduría Pública",
+        "nombre": "Valeria",
+        "numero_control": "20230008",
+        "fecha": "2026-03-09 00:00:00"
+      },
+      {
+        "apellido_paterno": "Silva",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_materno": "Ortega",
+        "carrera": "Ingeniería en Software",
+        "nombre": "Jorge",
+        "numero_control": "20230009",
+        "fecha": "2026-03-09 00:00:00"
+      },
+      {
+        "apellido_paterno": "Campos",
+        "nombre_institucion": "Instituto Tecnologico de Mexicali",
+        "apellido_materno": "Luna",
+        "carrera": "Ingenieria en Quimica",
+        "nombre": "Fernanda",
+        "numero_control": "20230010",
+        "fecha": "2026-03-09 00:00:00"
+      }
+    ],
+    "generated": [
+      {
+        "nombre": "Perez",
+        "pdf": "/output/certificados/Perez_overlay.pdf",
+        "docx": "/output/certificados/Perez.docx",
+        "row_index": 0
+      },
+      {
+        "nombre": "Gonzalez",
+        "pdf": "/output/certificados/Gonzalez_overlay.pdf",
+        "docx": "/output/certificados/Gonzalez.docx",
+        "row_index": 1
+      },
+      {
+        "nombre": "Hernandez",
+        "pdf": "/output/certificados/Hernandez_overlay.pdf",
+        "docx": "/output/certificados/Hernandez.docx",
+        "row_index": 2
+      },
+      {
+        "nombre": "Martinez",
+        "pdf": "/output/certificados/Martinez_overlay.pdf",
+        "docx": "/output/certificados/Martinez.docx",
+        "row_index": 3
+      },
+      {
+        "nombre": "Garcia",
+        "pdf": "/output/certificados/Garcia_overlay.pdf",
+        "docx": "/output/certificados/Garcia.docx",
+        "row_index": 4
+      },
+      {
+        "nombre": "Diaz",
+        "pdf": "/output/certificados/Diaz_overlay.pdf",
+        "docx": "/output/certificados/Diaz.docx",
+        "row_index": 5
+      },
+      {
+        "nombre": "Morales",
+        "pdf": "/output/certificados/Morales_overlay.pdf",
+        "docx": "/output/certificados/Morales.docx",
+        "row_index": 6
+      },
+      {
+        "nombre": "Rojas",
+        "pdf": "/output/certificados/Rojas_overlay.pdf",
+        "docx": "/output/certificados/Rojas.docx",
+        "row_index": 7
+      },
+      {
+        "nombre": "Silva",
+        "pdf": "/output/certificados/Silva_overlay.pdf",
+        "docx": "/output/certificados/Silva.docx",
+        "row_index": 8
+      },
+      {
+        "nombre": "Campos",
+        "pdf": "/output/certificados/Campos_overlay.pdf",
+        "docx": "/output/certificados/Campos.docx",
+        "row_index": 9
+      },
+      {
+        "nombre": "Lopez",
+        "pdf": "/output/certificados/Lopez_overlay.pdf",
+        "docx": "/output/certificados/Lopez.docx",
+        "row_index": 0
+      },
+      {
+        "nombre": "Ramirez",
+        "pdf": "/output/certificados/Ramirez_overlay.pdf",
+        "docx": "/output/certificados/Ramirez.docx",
+        "row_index": 1
+      },
+      {
+        "nombre": "Torres",
+        "pdf": "/output/certificados/Torres_overlay.pdf",
+        "docx": "/output/certificados/Torres.docx",
+        "row_index": 2
+      },
+      {
+        "nombre": "Soto",
+        "pdf": "/output/certificados/Soto_overlay.pdf",
+        "docx": "/output/certificados/Soto.docx",
+        "row_index": 3
+      },
+      {
+        "nombre": "Navarro",
+        "pdf": "/output/certificados/Navarro_overlay.pdf",
+        "docx": "/output/certificados/Navarro.docx",
+        "row_index": 4
+      },
+      {
+        "nombre": "Castro",
+        "pdf": "/output/certificados/Castro_overlay.pdf",
+        "docx": "/output/certificados/Castro.docx",
+        "row_index": 5
+      },
+      {
+        "nombre": "Vega",
+        "pdf": "/output/certificados/Vega_overlay.pdf",
+        "docx": "/output/certificados/Vega.docx",
+        "row_index": 6
+      },
+      {
+        "nombre": "Mendoza",
+        "pdf": "/output/certificados/Mendoza_overlay.pdf",
+        "docx": "/output/certificados/Mendoza.docx",
+        "row_index": 7
+      },
+      {
+        "nombre": "Ortega",
+        "pdf": "/output/certificados/Ortega_overlay.pdf",
+        "docx": "/output/certificados/Ortega.docx",
+        "row_index": 8
+      },
+      {
+        "nombre": "Luna",
+        "pdf": "/output/certificados/Luna_overlay.pdf",
+        "docx": "/output/certificados/Luna.docx",
+        "row_index": 9
+      }
+    ],
+    "updated_at": "2026-05-20T01:00:21.468327"
   }
 ]
